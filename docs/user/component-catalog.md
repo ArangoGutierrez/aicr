@@ -1142,6 +1142,29 @@ rollout, disable `TASValidateWorkloadSliceSize`, clean up the invalid Workloads,
 then re-enable it. While you are in there, fix any negative `subGroupCount` on a
 Workload: 0.19 only warns about it, but 0.20 rejects it at the API level.
 
+**If you turned topology-aware scheduling off, the gate the release note names
+is not enough.** `TASRecomputeAssignmentWithinSchedulingCycle` is new in 0.19
+and defaults on, and the 0.19.1 note tells you to set it false before upgrading
+when TAS is disabled. That is necessary and not sufficient. Checked against
+0.19.3 on kind: with `TopologyAwareScheduling=false` alone the manager exits at
+startup with `conflicting feature gates detected` and eight causes, and the
+Deployment crash-loops. Applying the release note's instruction on top of that,
+so `TASRecomputeAssignmentWithinSchedulingCycle=false` as well, still
+crash-loops. Seven sub-gates default on and each requires TAS
+(`TASHandleOverlappingFlavors`, `TASFailedNodeReplacement`,
+`TASFailedNodeReplacementFailFast`, `TASReplaceNodeOnPodTermination`,
+`TASReplaceNodeOnNodeTaints`, `TASMultiLayerTopology`,
+`TASRecomputeAssignmentWithinSchedulingCycle`), and `TASProfileMixed`, on by
+default since 0.15, fails on its own with `cannot use a TAS profile with TAS
+disabled`. The manager reached `1/1 Running` only with all nine set false
+together. AICR sets no feature gates for kueue, so a default install is
+unaffected and stays unaffected. This reaches only a cluster that disabled TAS
+through an override on the `kueue` component, in either
+`controllerManager.featureGates` or a `featureGates:` block inside
+`managerConfig.controllerManagerConfigYaml`; both were checked and fail
+identically, and kueue rejects setting the two at once. Given the cost, the
+cheaper path is to drop the override and leave TAS on.
+
 **If you re-enabled an integration AICR trims, check these too.** AICR pins
 `integrations.frameworks` to `batch/job`, JobSet and TrainJob, so the following
 are inert on a default install and matter only if you added the framework back
