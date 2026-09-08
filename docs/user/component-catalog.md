@@ -1114,14 +1114,15 @@ has nothing to rename, but both are reachable through typed overrides on the
 ```bash
 kubectl get configmap kueue-manager-config -n kueue-system \
   -o jsonpath='{.data.controller_manager_config\.yaml}' \
-  | grep -nE "^[[:space:]]*-?[[:space:]]*(input|multiplyBy|name)[[:space:]]*:[[:space:]]*[\"']?pods[\"']?[[:space:]]*\$|^[[:space:]]*[\"']?pods[\"']?[[:space:]]*:"
+  | grep -nE "^[[:space:]]*-?[[:space:]]*(input|multiplyBy|name)[[:space:]]*:[[:space:]]*[\"']?pods[\"']?([[:space:]]+#.*)?[[:space:]]*\$|^[[:space:]]*[\"']?pods[\"']?[[:space:]]*:"
 ```
 
 Helm renders this ConfigMap through `fromYaml | toYaml`, so a value written as
-`input: "pods"` reaches it normalized to `input: pods`. The pattern accepts
-quotes and arbitrary spacing anyway, so it still reports a hit against a
-ConfigMap that was applied directly or installed by another tool and never
-passed through that normalization.
+`input: "pods" # rename me` reaches it normalized to `input: pods`, quotes and
+comment dropped. The pattern accepts quotes, a trailing comment and arbitrary
+spacing anyway, so it still reports a hit against a ConfigMap that was applied
+directly or installed by another tool and never passed through that
+normalization.
 
 No output means nothing to do. Rename any hit to a qualified name such as
 `example.com/pods`. A rename also means updating the matching ClusterQueue
