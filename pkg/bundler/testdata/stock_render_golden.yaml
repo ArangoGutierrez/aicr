@@ -3575,7 +3575,7 @@ h100-kind-inference-dynamo:
   012-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   012-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   012-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  012-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
+  012-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
   013-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   013-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   013-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3603,10 +3603,10 @@ h100-kind-inference-dynamo:
   018-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: c98cad2dfd4cd47eee21a67efbaac2129b769643f30c7ab1c6eb03ecef92bede
   UPGRADING.md: 668b1aba11148b80ac92ea8e793d263cabba6a615aad52f1b3df7f83007e446f
-  bundle-info.yaml: a3a49f04be0026b48c577288adced123a55900f25348b0cbed39d35a2eccd810
-  checksums.txt: 42222f3ca5ecb4d616dbbef350d737eea067f9b33b8a53e8b8a0d61bf6751db9
+  bundle-info.yaml: 0afc9afee21b5cba9bc450571f02ea4a05a1887f3e07f209a5aa086673622ffc
+  checksums.txt: 8e99650aea872c376d54fb8573a38aef525bd73356124f81baad87c198f8330f
   deploy.sh: fc332287efdf91cc0ea399c6b5227ed2bb2fac9577a14311a44f24646cd09ad2
-  recipe.yaml: d657723de073f4d7fce48a12cab2658b419e202ff2f6881a1594810e7bb87053
+  recipe.yaml: e9a58fa24dd6e324a8831133ac487e63f50f42ae4f5d9690535e2341eebaf346
 h100-kind-training-kubeflow:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3635,7 +3635,7 @@ h100-kind-training-kubeflow:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
+  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3668,10 +3668,10 @@ h100-kind-training-kubeflow:
   014-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 8b8e7dcf4aa5595f8332b85821c37985bfe69e86b76a37ada909e0fc05c7beeb
   UPGRADING.md: 9444e3b2469985d89ae8fd6bb0ca9116e56c2904f9aff6929487211120b75484
-  bundle-info.yaml: 034d386831989b18d1b36425f2ad52ac5372565e8182d2739675ada3ad5993a9
-  checksums.txt: a11f1ac1b3162ed4666b9bf9fe345db9c68e1ee07e350a33c842f629b66d20e3
+  bundle-info.yaml: df53658101778fc0617aa94b08d6954096ff08786798e877ec9fb3b3c1254682
+  checksums.txt: 4b65bc11d269cdb0e13fa063c69bb2433630dc9989bba2fdaf404bca03c1b8b7
   deploy.sh: 585028988d2cdbd7fad24e6a6aa04e416399fb8c675ac560c1ea2cf01e76def6
-  recipe.yaml: daf77407126a3c7df7d511ffb77bb7cd15bb03e887b3d598cce7d7cc50dda3b1
+  recipe.yaml: 1022d75060f3972e2bcf17ec8cc0e1ea15192f7e3ca4fad9d96c43f896dd6d1e
 h100-kind-training-kueue:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3700,7 +3700,7 @@ h100-kind-training-kueue:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
+  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3740,10 +3740,10 @@ h100-kind-training-kueue:
   015-kueue-post/values.yaml: 9ae0af1abd28154ef1efc514bd20ee1daf35cfccbfaa0c6d97e08092b211d6fc
   README.md: f1e44cb3ac64c9a238129f81df52ef4f91296f1a7a621209977b27cc65c98986
   UPGRADING.md: 3da0e0d2a3d4866a1518c6703cd8f862cb5186961d9448b0e75b9a9461bb6707
-  bundle-info.yaml: f88856194d3828924538d530be63e57d60ffe7706fc89949668eb39fe1bf3956
-  checksums.txt: c3ccf2ba7866923feb3b62af0f4dd028fd12779e8e451c4225e672d08f3d5b9a
+  bundle-info.yaml: 73a55066f2a7d4d7706331b9ad31716a3d4f75cbc5fa7fca6287fd461717db96
+  checksums.txt: 38e5a71e6e478c892e8069df425a70456c573d3f2de1f28ed8c73bc669efc380
   deploy.sh: 706a8d58c6b713b9376215029a49a213fc943bdecab7cd7d4ea7d7ef2d86e692
-  recipe.yaml: cde3c858ef646aa6f0256fdf5481713ad96781525fcc481e0db8ee8395f079ef
+  recipe.yaml: ad05736c98899d1df401d255243692cc8debf2fa490b9ec99c6087006584f250
 h100-kind-training-slurm:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3772,7 +3772,7 @@ h100-kind-training-slurm:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
+  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3817,10 +3817,10 @@ h100-kind-training-slurm:
   017-slinky-topograph/values.yaml: c9015074818102d8727cfd38e96941c5c285175852fa71f81182c4323f751e05
   README.md: 5ea67d9b43752a8251ced4e0585f15e6f2eb0b05ea14b846d9b9a8c66e978c8f
   UPGRADING.md: 9444e3b2469985d89ae8fd6bb0ca9116e56c2904f9aff6929487211120b75484
-  bundle-info.yaml: 855c42d238b7ecd24e32d1803bb19afc134abc0adedbcc0a4623538067aa3c97
-  checksums.txt: f2f6d2d52f38647c49b061a2b96ec9a3e2506eff9cbc7decb68e30220e3b5888
+  bundle-info.yaml: 610f341a7280b70babd087cf4e7367c561d24601cd936ff4cccc305400909ded
+  checksums.txt: fb8865d6f0daf38b199798d8014720086a9e7d0766df74df66a78c0193c6fbf6
   deploy.sh: cd7ccfe96441d0d0a17d9b7ef13f18e2938613e70854fc367a7bd8e64039019c
-  recipe.yaml: 41a52cdcbcf7c952b6c5d503a00ec0fce06e6e9c89a5bbfaba33d31158b64f5d
+  recipe.yaml: 9a2246dd7bb6510f3c0a5d368200c6c8bcca7960be15eedc1f0c2e7609410f70
 h200-any:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
