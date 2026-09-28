@@ -301,7 +301,7 @@ Both policies fire when a **DaemonSet-owned Pod** in a watched namespace has bee
 
 | Operator | Required label | Coverage |
 |---|---|---|
-| `gpu-operator` (v26.7.0) | `app.kubernetes.io/managed-by: gpu-operator` | Confirmed on a live H100 cluster: all nine operand DaemonSets (driver, toolkit, device-plugin, DCGM, DCGM exporter, validator, GFD, MIG manager, MPS control), and the running Pods inherit it. The bundled node-feature-discovery subchart does not carry it and is out of scope. |
+| `gpu-operator` (v26.7.1) | `app.kubernetes.io/managed-by: gpu-operator` | Confirmed on a live H100 cluster at v26.7.0 and re-read on a live GB300 cluster at v26.7.1: all nine operand DaemonSets (driver, toolkit, device-plugin, DCGM, DCGM exporter, validator, GFD, MIG manager, MPS control), and the running Pods inherit it. The bundled node-feature-discovery subchart does not carry it and is out of scope. |
 | `network-operator` (26.4.1) | `ds-owner: NicClusterPolicy` | Verified on Kind only. The label is applied per-operand, not uniformly, so coverage depends on which `NicClusterPolicy` a recipe ships -- see below. |
 
 **Network Operator coverage is partial, and it varies by recipe.** The `ds-owner` label is stamped per operand rather than by a shared helper, so which components a policy watches depends on what that recipe's `NicClusterPolicy` enables:
@@ -534,7 +534,7 @@ Upstream's validated-platform list covers DGX and OCI hardware and does **not** 
 
 **Both layers ship `processingStrategy: STORE_ONLY`.** This is a deliberate downgrade from the chart's `EXECUTE_REMEDIATION` default, and more conservative than upstream's own example configuration, which reserves `STORE_ONLY` for a single pattern. Several counters — `link_downed` among them — treat any increment as fatal, and the remediation upstream recommends for them is `REPLACE_VM`, the most destructive action in the pipeline. Observation first; revisit once real coverage has been measured.
 
-**`metadataCollector` is a hard dependency.** `nic-health-monitor` reads GPU-to-NIC topology from `/var/lib/nvsentinel/gpu_metadata.json` and has no devices to check without it. Because a missing dependency renders and deploys silently, `CheckNVSentinelNicHealthMonitorRequiresMetadataCollector` blocks the bundle instead: enabling `global.nicHealthMonitor.enabled` with `global.metadataCollector.enabled: false` fails unless `nic-health-monitor.nicInclusionRegexOverride` carries a value the monitor will actually accept. Set is not enough — the gate requires a string with at least one non-empty pattern, and every comma-separated pattern must compile, because the chart writes the value straight into the monitor's config and it refuses to start on one that does not. An override it rejects is not a bypass; it is the same missing inventory in a crash loop. That override is the documented bypass, and it forfeits the automatic management-NIC exclusion along with the dependency, so prefer enabling `metadataCollector`. No AKS or OKE overlay disables it; the overlays that do (VR200/RKE2, H200/k0s) are not in either family and never compose this mixin.
+**`metadataCollector` is a hard dependency.** `nic-health-monitor` reads GPU-to-NIC topology from `/var/lib/nvsentinel/gpu_metadata.json` and has no devices to check without it. Because a missing dependency renders and deploys silently, `CheckNVSentinelNicHealthMonitorRequiresMetadataCollector` blocks the bundle instead: enabling `global.nicHealthMonitor.enabled` with `global.metadataCollector.enabled: false` fails unless `nic-health-monitor.nicInclusionRegexOverride` carries a value the monitor will actually accept. Set is not enough — the gate requires a string with at least one non-empty pattern, and every comma-separated pattern must compile, because the chart writes the value straight into the monitor's config and it refuses to start on one that does not. An override it rejects is not a bypass; it is the same missing inventory in a crash loop. That override is the documented bypass, and it forfeits the automatic management-NIC exclusion along with the dependency, so prefer enabling `metadataCollector`. No shipped overlay disables it.
 
 **Escalation needs the datastore.** The "three events in one hour escalates" behavior lives in the Health Events Analyzer, which needs MongoDB. Without it ([#1014](https://github.com/NVIDIA/aicr/issues/1014)) only fatal events surface.
 
@@ -576,12 +576,14 @@ The recipes now carry that value wherever it is needed ([#2181](https://github.c
 | OKE `gpuStack=operator-managed` | the operator's driver pod | `false` | the `gpuStack` profile |
 | EKS | the operator's driver pod | unset (chart default `false`) | — |
 | Kind (nvkind) | none — driver is host-installed | `true` | the overlay (Kind has no profile) |
+| k0s (H200) | none — driver is host-installed | `true` | the leaf overlay (k0s has no profile) |
+| RKE2 (VR200) | none — driver is host-installed | `true` | the leaf overlays (RKE2 has no profile) |
 
 The explicit `false` on the operator-managed variants is deliberate rather than redundant: it keeps the path profile-owned, so it cannot be flipped into an unsafe hybrid later. Do **not** assume a preinstalled driver where the GPU Operator installs one — skipping detection there would keep the label applied across an unloaded or unhealthy driver.
 
 **NVSentinel is mandatory on the profiled families.** Because the AKS, GKE-COS, and OKE `gpuStack` profiles name nvsentinel, its presence is profile-owned: `--set nv-sentinel:enabled=false` and a `bundlers=` list that omits it are both rejected on those platforms. That is intended — NVSentinel is a required component for these deployments. It remains optional on platforms with no `gpuStack` profile, such as EKS.
 
-AKS, GKE-COS, and OKE get the install-time profile lock; Kind sets the value at overlay level, so a bundle-time or declared-dynamic change is still rejected by the gate below, but a manual post-generation edit to the rendered Helm values is not.
+AKS, GKE-COS, and OKE get the install-time profile lock; Kind, k0s, and RKE2 set the value at overlay level, so a bundle-time or declared-dynamic change is still rejected by the gate below, but a manual post-generation edit to the rendered Helm values is not.
 
 If you do need to set it yourself on an unlisted platform, it is an ordinary override:
 
@@ -610,7 +612,7 @@ The AKS `gpuStack` profile now owns both names — `gpu-operator.operator.runtim
 | `azure-managed` (default) | `nvidia-container-runtime` | `nvidia-container-runtime` |
 | `operator-managed` | `nvidia` | `nvidia` |
 
-Every other platform leaves `operator.runtimeClass` at the shared chart default `nvidia`, so neither side needs a value. `CheckNVSentinelRuntimeClassCoherence` still compares the two resolved names as defense in depth, treating either side unset as `nvidia`.
+Every other platform leaves `operator.runtimeClass` at the shared chart default `nvidia`, so neither side needs a value. The exception is RKE2 (VR200): its GPU Operator runs CDI with the NRI plugin, which registers no RuntimeClass, so the VR200 overlays clear `metadata-collector.runtimeClassName` and host-mount the driver libraries instead ([NVIDIA/NVSentinel#1717](https://github.com/NVIDIA/NVSentinel/issues/1717)). `CheckNVSentinelRuntimeClassCoherence` still compares the two resolved names as defense in depth, treating either side unset as `nvidia`.
 
 An AKS bundle therefore needs no NVSentinel overrides at all — only the keyed toleration AKS requires independently of NVSentinel (bundling an AKS recipe without one is itself a blocking error, `CheckWildcardAcceleratedToleration`):
 
@@ -1335,43 +1337,33 @@ aicr bundle --recipe recipes/overlays/gb200-gke-cos-inference-dynamo.yaml \
 `a4xStorageClass.create` is a bundling-time toggle read by AICR itself, not
 an `ai-dynamo` chart value. It never reaches the rendered Helm values.
 
-### `gpu-operator` and `nvidia-dra-driver-gpu`: ComputeDomain CRD ownership on Argo CD
+### `gpu-operator` and `nvidia-dra-driver-gpu`: shared ComputeDomain CRD
 
-`gpu-operator` and `nvidia-dra-driver-gpu` (and `nvidia-dra-driver-gpu-ocp`) both
-ship the `computedomains.resource.nvidia.com` CRD. As of `gpu-operator`
-v26.7.0 the two chart copies disagree on schema (`spec.numNodes` required vs.
-optional with a default), so on `--deployer argocd` and `--deployer
-argocd-helm` — where every generated `Application` syncs with
-`automated.selfHeal: true` — Argo CD perpetually reconciles the CRD toward
-whichever `Application` last synced.
+`gpu-operator` and `nvidia-dra-driver-gpu` (and `nvidia-dra-driver-gpu-ocp`)
+both ship the `computedomains.resource.nvidia.com` CRD. In `gpu-operator`
+v26.7.0 the two copies disagreed on schema: the operator's copy required
+`spec.numNodes` and carried no default. `gpu-operator` v26.7.1 ships a copy
+identical to the DRA driver 0.5.0 chart's, so the two charts no longer
+contend.
 
-When a bundle pairs a standalone DRA driver with `gpu-operator` **v26.7.0 or
-newer**, AICR scopes an `ignoreDifferences` entry to the divergent fields on
-the `gpu-operator` `Application`, so the DRA driver's copy stays the effective
-owner and the reconcile loop stops. This is generated automatically — no flag
-or override is needed. Bundles with only one of the two components, or with a
-`gpu-operator` older than v26.7.0 (whose chart ships no `computedomains` CRD
-to contend with), are unaffected and carry no such entry.
+**Argo CD.** Bundles built with `gpu-operator` v26.7.0 carried an
+`ignoreDifferences` entry and `RespectIgnoreDifferences=true` on the
+`gpu-operator` `Application` to stop Argo CD reconciling the CRD back and
+forth. AICR no longer emits either. An existing Argo CD deployment converges
+once the `gpu-operator` `Application` syncs v26.7.1, because both
+`Application`s then apply the same CRD. An external `--data` layer that pins
+`gpu-operator` back to v26.7.0 alongside a DRA driver brings the reconcile
+loop back on Argo CD; move that pin to v26.7.1.
 
-**One side effect worth knowing about.** The entry is paired with the
-`RespectIgnoreDifferences=true` sync option, without which Argo CD would
-exclude the fields from its diff but still re-apply them on every sync. That
-option is *Application-wide*, not per-entry: Argo builds the sync-time
-normalizer from this `Application`'s `ignoreDifferences` **plus** any
-`resource.customizations.ignoreDifferences.*` configured cluster-wide in
-`argocd-cm`. So on an Argo instance carrying global ignore rules (webhook
-`caBundle`, HPA-managed `replicas`, aggregated ClusterRole rules), those
-fields also stop being enforced at sync time for the `gpu-operator`
-`Application` specifically — drift in them is preserved rather than corrected
-by `selfHeal`. Argo CD offers no way to scope the option to a single entry.
-
-This is a stopgap, not a durable fix. `Helm` and `Flux` bundles are not
-affected (both install CRDs once and never re-apply them), and the
-OLM-based OCP path (`gpu-operator-ocp`, `gpu-operator-ocp-olm`) is not
-covered — those components install no chart `crds/` of their own, so their
-CRDs come from the OLM `Subscription`/CSV and an `Application`-level
-`ignoreDifferences` has nothing to arbitrate. That conflict is tracked
-separately. See [NVIDIA/aicr#2546](https://github.com/NVIDIA/aicr/issues/2546).
+**Helm and Flux.** AICR's Helm and Flux deployments leave an installed
+`computedomains` CRD unchanged on upgrade. `gpu-operator` is not marked
+`ownsCRDs`, so its Flux `HelmRelease` keeps helm-controller's default
+`spec.upgrade.crds: Skip` and the `helm` deployer generates no CRD step for it;
+the chart's own CRD upgrade hook (`operator.upgradeCRD`) does not cover
+`computedomains`. A cluster first installed with `gpu-operator` v26.7.0
+therefore keeps that release's stricter copy after upgrading. Set `spec.numNodes`
+explicitly on every `ComputeDomain`, as AICR's own manifests do; `0` is valid
+under both copies.
 
 ### `agentgateway`: upgrading across breaking releases
 
