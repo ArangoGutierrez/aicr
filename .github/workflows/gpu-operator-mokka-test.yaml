@@ -201,6 +201,32 @@ jobs:
           [ "$workers" -gt 0 ] || { echo "::error::no worker nodes"; exit 1; }
           echo "expecting $workers worker(s) at nvidia.com/gpu=$GPU_COUNT"
 
+          # Named, not counted. Counting only the pods that happen to exist
+          # lets an operand the operator never created contribute zero to the
+          # unready tally, so the lane would pass with the device plugin and
+          # GFD up and no validator or exporter at all. Each of these must
+          # exist with a non-zero desired count and all of it Ready.
+          REQUIRED_OPERANDS="nvidia-device-plugin-daemonset gpu-feature-discovery nvidia-dcgm-exporter nvidia-operator-validator"
+
+          operands_ready() {
+            local missing="" ds desired ready
+            for ds in $REQUIRED_OPERANDS; do
+              desired=$(kubectl get ds "$ds" -n gpu-operator \
+                -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || true)
+              ready=$(kubectl get ds "$ds" -n gpu-operator \
+                -o jsonpath='{.status.numberReady}' 2>/dev/null || true)
+              if [ -z "$desired" ]; then
+                missing="$missing $ds(absent)"
+              elif [ "$desired" -eq 0 ]; then
+                missing="$missing $ds(desired=0)"
+              elif [ "${ready:-0}" != "$desired" ]; then
+                missing="$missing $ds(${ready:-0}/$desired)"
+              fi
+            done
+            OPERAND_GAP="$missing"
+            [ -z "$missing" ]
+          }
+
           deadline=$((SECONDS + 600))
           while [ "$SECONDS" -lt "$deadline" ]; do
             ready=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o json \
@@ -215,13 +241,16 @@ jobs:
                 | select( ((.status.containerStatuses // []) | length) == 0
                           or ((.status.containerStatuses // []) | map(.ready) | index(false) != null) )
               ] | length')
-            echo "  workers_at_capacity=$ready/$workers pods_settling=$settling"
-            if [ "$ready" = "$workers" ] && [ "$settling" -eq 0 ]; then
+            OPERAND_GAP=""
+            if operands_ready; then operands="all"; else operands="gap:$OPERAND_GAP"; fi
+            echo "  workers_at_capacity=$ready/$workers pods_settling=$settling operands=$operands"
+            if [ "$ready" = "$workers" ] && [ "$settling" -eq 0 ] && [ "$operands" = "all" ]; then
               echo "converged"; exit 0
             fi
             sleep 15
           done
-          echo "::error::GPU stack did not converge within 600s"
+          echo "::error::GPU stack did not converge within 600s (operand gap:${OPERAND_GAP:-none})"
+          kubectl get ds -n gpu-operator
           kubectl get pods -n gpu-operator -o wide
           exit 1
 
@@ -283,20 +312,40 @@ jobs:
                   limits:
                     nvidia.com/gpu: $over
           EOF
-          for _ in $(seq 1 12); do
-            phase=$(kubectl get pod gpu-over-capacity -o jsonpath='{.status.phase}' 2>/dev/null || true)
-            [ "$phase" = "Pending" ] && break
+          # Wait on the scheduler's DECISION, not on Pending. Every pod is
+          # Pending the instant it is created, before the scheduler has looked
+          # at it, so breaking on that races the decision and then reads events
+          # that do not exist yet. PodScheduled=False with reason Unschedulable
+          # is written by the scheduler itself, and carries the reason in its
+          # message, so it is both the right synchronisation point and the
+          # evidence.
+          scheduled_reason() {
+            kubectl get pod gpu-over-capacity \
+              -o jsonpath='{.status.conditions[?(@.type=="PodScheduled")].reason}' 2>/dev/null || true
+          }
+          for _ in $(seq 1 24); do
+            [ "$(scheduled_reason)" = "Unschedulable" ] && break
             sleep 5
           done
-          phase=$(kubectl get pod gpu-over-capacity -o jsonpath='{.status.phase}')
-          [ "$phase" = "Pending" ] || { echo "::error::pod requesting $over GPUs reached $phase"; exit 1; }
-          # The reason matters: Pending for an unrelated cause would pass a
-          # phase-only check while proving nothing about GPU capacity.
-          kubectl get events --field-selector involvedObject.name=gpu-over-capacity \
-            -o jsonpath='{range .items[*]}{.message}{"\n"}{end}' > /tmp/events.txt
-          cat /tmp/events.txt
-          grep -q 'Insufficient nvidia.com/gpu' /tmp/events.txt \
-            || { echo "::error::Pending, but not for insufficient GPU capacity"; exit 1; }
+
+          reason=$(scheduled_reason)
+          if [ "$reason" != "Unschedulable" ]; then
+            phase=$(kubectl get pod gpu-over-capacity -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            echo "::error::pod requesting $over GPUs was not rejected (PodScheduled reason='${reason:-none}', phase='${phase:-none}')"
+            kubectl describe pod gpu-over-capacity | tail -20
+            exit 1
+          fi
+
+          # Rejected, but the cause must be GPU capacity. Rejection for an
+          # unrelated reason would satisfy a reason-only check while proving
+          # nothing about the mocked devices.
+          msg=$(kubectl get pod gpu-over-capacity \
+            -o jsonpath='{.status.conditions[?(@.type=="PodScheduled")].message}')
+          echo "  scheduler said: $msg"
+          case "$msg" in
+            *"Insufficient nvidia.com/gpu"*) echo "  capacity is enforced by the scheduler" ;;
+            *) echo "::error::rejected, but not for insufficient GPU capacity"; exit 1 ;;
+          esac
           kubectl delete pod gpu-over-capacity --ignore-not-found
 
       - name: Collect debug artifacts
