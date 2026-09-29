@@ -21,17 +21,19 @@
 # (github.com/NVIDIA/k8s-test-infra), whose node image registers the nvidia
 # containerd runtime handler and whose nvml-mock DaemonSet stages a mock
 # libnvidia-ml.so the real device plugin, GFD, DCGM exporter and
-# operator-validator read.
+# operator-validator read, plus the mock IMEX surface the DRA driver's
+# compute-domain kubelet plugin reads.
 #
-# What it proves: the recipe's gpu-operator values deploy, every operand
-# reaches Ready, and the advertised nvidia.com/gpu capacity is real to the
-# scheduler.
+# What it proves: the recipe's gpu-operator and DRA driver values deploy,
+# every gpu-operator operand and the DRA kubelet plugin reach Ready, and the
+# advertised nvidia.com/gpu capacity is real to the scheduler.
 #
 # What it does NOT prove, and no mocked lane can: CUDA execution, NCCL,
-# GPUDirect/RDMA data paths, driver and firmware lifecycle, MIG, or anything
-# timing- or throughput-sensitive. The cuda validator workload is disabled by
-# the mokka-mock profile value for exactly this reason. Those keep needing the
-# hardware lanes, which this lane does not replace.
+# GPUDirect/RDMA data paths, driver and firmware lifecycle, MIG, IMEX daemons
+# or ComputeDomain allocation, or anything timing- or throughput-sensitive.
+# The cuda validator workload and the DRA feature gates that need a 570+
+# driver are disabled by the mokka-mock profile value for exactly this reason.
+# Those keep needing the hardware lanes, which this lane does not replace.
 name: GPU Operator on Mokka (GPU-free)
 
 on:
@@ -41,6 +43,7 @@ on:
     paths:
       - 'recipes/overlays/kind.yaml'
       - 'recipes/components/gpu-operator/**'
+      - 'recipes/components/nvidia-dra-driver-gpu/**'
       - 'recipes/registry.yaml'
       - 'pkg/recipe/**'
       - 'pkg/bundler/**'
@@ -151,12 +154,17 @@ jobs:
       - name: Install Mokka nvml-mock
         run: |
           set -euo pipefail
+          # imex.mockChannels is off in the chart by default. The mokka-mock
+          # value points the DRA driver's altProcDevices at the proc-devices
+          # file it stages, a hostPath of type File, so without it the kubelet
+          # plugin stays in Init on a failed mount.
           helm install nvml-mock "oci://${{ steps.mokka.outputs.chart }}" \
             --version "${{ steps.mokka.outputs.chart_version }}" \
             --namespace mokka --create-namespace \
             --set gpu.profile="$GPU_PROFILE" \
             --set gpu.count="$GPU_COUNT" \
             --set image.tag="${{ steps.mokka.outputs.image_version }}" \
+            --set imex.mockChannels.enabled=true \
             --wait --timeout 300s
           kubectl rollout status daemonset/nvml-mock -n mokka --timeout=300s
 
@@ -169,18 +177,22 @@ jobs:
           # Fail loudly if the profile did not take: the whole lane is
           # meaningless if the rendered values still point at the host root.
           grep -q '/var/lib/nvml-mock/driver' /tmp/bundle/*gpu-operator/values.yaml
+          grep -q 'altProcDevices: /var/lib/nvml-mock/imex/proc-devices' /tmp/bundle/*nvidia-dra-driver-gpu/values.yaml
 
-      - name: Deploy NFD and gpu-operator from the bundle
+      - name: Deploy NFD, gpu-operator and the DRA driver from the bundle
         run: |
           set -euo pipefail
           # NFD first: gpu-operator gates its operands on the labels NFD
           # derives from the feature file nvml-mock stages. Without it the
-          # ClusterPolicy reports ready with zero operands and zero GPUs.
+          # ClusterPolicy reports ready with zero operands and zero GPUs. The
+          # DRA kubelet plugin's node affinity reads the same NFD labels.
           nfd_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nfd' | head -1)
           gpu_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-gpu-operator' | head -1)
-          [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ]
+          dra_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nvidia-dra-driver-gpu' | head -1)
+          [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ] && [ -n "$dra_dir" ]
           ( cd "$nfd_dir" && bash install.sh )
           ( cd "$gpu_dir" && bash install.sh )
+          ( cd "$dra_dir" && bash install.sh )
 
       - name: Wait for the GPU stack to converge
         run: |
@@ -252,6 +264,40 @@ jobs:
           echo "::error::GPU stack did not converge within 600s (operand gap:${OPERAND_GAP:-none})"
           kubectl get ds -n gpu-operator
           kubectl get pods -n gpu-operator -o wide
+          exit 1
+
+      - name: Wait for the DRA driver to converge
+        run: |
+          set -euo pipefail
+          # The controller alone is not convergence: without the mock IMEX
+          # surface it stays Ready while every kubelet plugin crash-loops on
+          # "error parsing '/proc/devices'". Same four conditions as
+          # recipes/checks/nvidia-dra-driver-gpu/health-check.yaml, so a
+          # DaemonSet that schedules nowhere or is mid-rollout does not pass.
+          ns=nvidia-dra-driver
+          ds=nvidia-dra-driver-gpu-kubelet-plugin
+          controller=nvidia-dra-driver-gpu-controller
+          deadline=$((SECONDS + 300))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            state=$(kubectl get ds "$ds" -n "$ns" -o json 2>/dev/null | jq -r '
+              [ (.status.desiredNumberScheduled // 0), (.status.numberReady // 0),
+                (.status.updatedNumberScheduled // 0),
+                (if (.status.observedGeneration // 0) == .metadata.generation then 1 else 0 end)
+              ] | map(tostring) | join(" ")' || true)
+            read -r desired ready updated current <<<"${state:-0 0 0 0}"
+            available=$(kubectl get deploy "$controller" -n "$ns" \
+              -o jsonpath='{.status.availableReplicas}' 2>/dev/null || true)
+            echo "  kubelet-plugin ready=$ready/$desired updated=$updated current_gen=$current controller_available=${available:-0}"
+            if [ "$desired" -gt 0 ] && [ "$ready" = "$desired" ] && [ "$updated" = "$desired" ] \
+              && [ "$current" = "1" ] && [ "${available:-0}" -ge 1 ]; then
+              echo "converged"; exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::DRA driver did not converge within 300s"
+          kubectl get ds,deploy,pods -n "$ns" -o wide
+          kubectl logs -n "$ns" -l nvidia-dra-driver-gpu-component=kubelet-plugin \
+            -c compute-domains --tail=20 || true
           exit 1
 
       - name: Assert the mocked GPUs are allocatable
@@ -359,6 +405,9 @@ jobs:
             > /tmp/debug/operator-validator.log 2>&1 || true
           kubectl logs -n mokka --all-containers --tail=200 -l app.kubernetes.io/name=nvml-mock \
             > /tmp/debug/nvml-mock.log 2>&1 || true
+          kubectl logs -n nvidia-dra-driver --all-containers --tail=200 \
+            -l nvidia-dra-driver-gpu-component=kubelet-plugin \
+            > /tmp/debug/dra-kubelet-plugin.log 2>&1 || true
 
       - name: Upload debug artifacts
         if: failure()
