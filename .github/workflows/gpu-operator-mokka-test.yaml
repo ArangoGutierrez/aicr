@@ -88,7 +88,34 @@ jobs:
           install_kind: 'true'
           kind_version: ${{ steps.versions.outputs.kind }}
           install_helm: 'true'
+          helm_version: ${{ steps.versions.outputs.helm }}
           install_kubectl: 'true'
+          kubectl_version: ${{ steps.versions.outputs.kubectl }}
+
+      - name: Verify the toolchain matches the .settings.yaml pins
+        env:
+          WANT_KIND: ${{ steps.versions.outputs.kind }}
+          WANT_HELM: ${{ steps.versions.outputs.helm }}
+          WANT_KUBECTL: ${{ steps.versions.outputs.kubectl }}
+        run: |
+          set -euo pipefail
+          # setup-build-tools replaces a runner helm that differs from the pin,
+          # but keeps any kind or kubectl already at /usr/local/bin without
+          # comparing versions. ubuntu-latest ships kind there, so a runner
+          # image update would otherwise change the toolchain under the lane.
+          fail=0
+          check() {
+            local name="$1" want="${2#v}" got="${3#v}"
+            echo "$name: installed ${got:-<unreadable>}, pinned $want"
+            if [ "$got" != "$want" ]; then
+              echo "::error::$name ${got:-<unreadable>} does not match the .settings.yaml pin $want"
+              fail=1
+            fi
+          }
+          check kind "$WANT_KIND" "$(kind version | awk '{print $2}')"
+          check helm "$WANT_HELM" "$(helm version --template '{{.Version}}')"
+          check kubectl "$WANT_KUBECTL" "$(kubectl version --client -o json | jq -r .clientVersion.gitVersion)"
+          [ "$fail" -eq 0 ]
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
