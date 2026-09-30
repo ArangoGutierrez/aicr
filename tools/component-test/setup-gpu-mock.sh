@@ -132,7 +132,8 @@ deploy_via_helm() {
     # The chart lives at a different registry path from the image; see the
     # component_test block in .settings.yaml. The image tag IS forced here:
     # the chart's default is the floating `latest`, so pinning only the chart
-    # leaves what actually runs unpinned.
+    # leaves what actually runs unpinned. The repository is forced too, or a
+    # mirror set through NVML_MOCK_IMAGE is logged here and never pulled.
     local chart_ref="oci://${NVML_MOCK_CHART}"
     log_info "Attempting Helm install from: ${chart_ref} (version ${NVML_MOCK_CHART_VERSION})"
 
@@ -143,6 +144,7 @@ deploy_via_helm() {
         --namespace nvml-mock --create-namespace \
         --set gpu.profile="$GPU_PROFILE" \
         --set gpu.count="$GPU_COUNT" \
+        --set image.repository="$NVML_MOCK_IMAGE" \
         --set image.tag="$NVML_MOCK_VERSION" \
         --wait --timeout "$MOCK_READY_TIMEOUT" 2>"$helm_err"; then
         rm -f "$helm_err"
