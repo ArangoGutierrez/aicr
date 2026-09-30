@@ -166,16 +166,33 @@ deploy_via_manifest() {
         exit 1
     fi
 
+    # The manifest is one rendering of the pinned chart for one GPU profile.
+    # Deploying it for another profile would advertise GPUs nobody asked for,
+    # and deploying it past a chart bump would stage a tree the verifier and
+    # the pinned image no longer agree on, so either mismatch stops here.
+    local manifest_chart manifest_profile
+    manifest_chart=$(sed -n 's/^# nvml-mock-chart-version: //p' "$MANIFEST_FILE")
+    manifest_profile=$(sed -n 's/^# nvml-mock-profile: //p' "$MANIFEST_FILE")
+    if [[ "$manifest_chart" != "$NVML_MOCK_CHART_VERSION" ]]; then
+        log_error "Fallback manifest was rendered from nvml-mock chart ${manifest_chart:-<unknown>}, but ${NVML_MOCK_CHART_VERSION} is pinned."
+        log_error "Regenerate it as its header describes."
+        exit 1
+    fi
+    if [[ "$manifest_profile" != "$GPU_PROFILE" ]]; then
+        log_error "Fallback manifest serves GPU profile ${manifest_profile:-<unknown>} only, not ${GPU_PROFILE}."
+        log_error "Install helm to use another profile."
+        exit 1
+    fi
+
     log_info "Deploying nvml-mock via manifest: $MANIFEST_FILE"
 
     # Substitute placeholders in manifest
     sed \
         -e "s|NVML_MOCK_IMAGE_PLACEHOLDER|${NVML_MOCK_IMAGE}|g" \
         -e "s|NVML_MOCK_VERSION_PLACEHOLDER|${NVML_MOCK_VERSION}|g" \
-        -e "s|GPU_PROFILE_PLACEHOLDER|${GPU_PROFILE}|g" \
         -e "s|GPU_COUNT_PLACEHOLDER|${GPU_COUNT}|g" \
         -e "s|DRIVER_VERSION_PLACEHOLDER|${DRIVER_VERSION}|g" \
-        "$MANIFEST_FILE" | kubectl apply -f -
+        "$MANIFEST_FILE" | kubectl apply -n nvml-mock -f -
 }
 
 # Try Helm, fall back to manifest
