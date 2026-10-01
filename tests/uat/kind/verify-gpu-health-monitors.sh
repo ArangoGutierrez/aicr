@@ -104,6 +104,31 @@ daemonset_is_ready() {
     ((desired > 0)) && ((ready == desired))
 }
 
+# worker_nodes <cluster>
+#
+# The workers setup-gpu-sim.sh runs a host engine on, one name per line, which
+# is every node this lane expects a monitor on.
+worker_nodes() {
+    local cluster="$1" index
+    for index in $(worker_indices); do
+        kind_worker_node "${cluster}" "${index}" || return 1
+        printf '\n'
+    done
+}
+
+# unlabelled_workers <workers> <labelled>
+#
+# Prints each of <workers> that <labelled> does not name, one per line; both
+# are newline-separated node names. By name rather than by count, so a labelled
+# node that is not a worker cannot stand in for a worker that is missing.
+unlabelled_workers() {
+    local workers="$1" labelled="$2" node
+    while IFS= read -r node; do
+        [[ -n "${node}" ]] || continue
+        grep -qxF -- "${node}" <<<"${labelled}" || printf '%s\n' "${node}"
+    done <<<"${workers}"
+}
+
 # --- live -------------------------------------------------------------------
 
 ds_field() {
@@ -115,12 +140,15 @@ ds_field() {
 
 main() {
     local cluster="${1:-${DEFAULT_CLUSTER_NAME}}"
-    local context="kind-${cluster}" version ds sibling desired ready labelled deadline
+    local context="kind-${cluster}" version ds sibling desired ready
+    local workers expected labelled missing deadline
 
     version="$(expected_dcgm_major "$(dcgm_image_ref)")" || return 1
     ds="$(monitor_daemonset "${version}")" || return 1
     sibling="$(monitor_sibling "${version}")" || return 1
-    echo "expecting ${DCGM_VERSION_LABEL}=${version} and ${ds} to be ready"
+    workers="$(worker_nodes "${cluster}")" || return 1
+    expected="$(grep -c . <<<"${workers}")"
+    echo "expecting ${DCGM_VERSION_LABEL}=${version} on ${expected} worker(s) and ${ds} ready on each"
 
     # One budget for both waits: the DaemonSet cannot schedule before the label
     # exists, so they are one sequence, and each loop reads before it checks
@@ -129,28 +157,33 @@ main() {
 
     # The labeler writes the node label from its own event handlers, once a
     # DCGM pod is Ready and its caches have synced. Nothing before this step
-    # waits for that, so an empty read is retried; one that stays empty points
-    # at the host engine rather than at NVSentinel.
+    # waits for that, so a worker without it is retried; one that stays
+    # unlabelled points at its host engine rather than at NVSentinel.
     while :; do
         labelled="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
-            get nodes -l "${DCGM_VERSION_LABEL}=${version}" -o name 2>/dev/null | wc -l | tr -d ' ')"
-        [[ "${labelled}" != "0" ]] && break
+            get nodes -l "${DCGM_VERSION_LABEL}=${version}" -o name 2>/dev/null | sed 's|^node/||')"
+        missing="$(unlabelled_workers "${workers}" "${labelled}")"
+        [[ -z "${missing}" ]] && break
         if ((SECONDS >= deadline)); then
-            echo "error: no node carries ${DCGM_VERSION_LABEL}=${version} after ${MONITOR_TIMEOUT}s." >&2
+            echo "error: $(grep -c . <<<"${missing}") of ${expected} worker(s) lack" \
+                "${DCGM_VERSION_LABEL}=${version} after ${MONITOR_TIMEOUT}s:" \
+                "$(paste -sd ' ' - <<<"${missing}")" >&2
             echo "       the labeler writes it from a Ready pod labelled app=${DCGM_NAME}" >&2
             echo "       whose image matches dcgm:<major>. Check the host engine first." >&2
             return 1
         fi
         sleep "${MONITOR_INTERVAL}"
     done
-    echo "${labelled} node(s) carry ${DCGM_VERSION_LABEL}=${version}"
+    echo "all ${expected} worker(s) carry ${DCGM_VERSION_LABEL}=${version}"
 
+    # Every worker is labelled by now, so fewer scheduled pods than workers is
+    # a worker left without a monitor.
     while :; do
         desired="$(ds_field "${context}" "${ds}" desiredNumberScheduled)"
         ready="$(ds_field "${context}" "${ds}" numberReady)"
-        daemonset_is_ready "${desired:-0}" "${ready:-0}" && break
+        daemonset_is_ready "${desired:-0}" "${ready:-0}" && [[ "${desired}" == "${expected}" ]] && break
         if ((SECONDS >= deadline)); then
-            echo "error: ${ds} is not ready after ${MONITOR_TIMEOUT}s" \
+            echo "error: ${ds} is not ready on all ${expected} worker(s) after ${MONITOR_TIMEOUT}s" \
                 "(desired=${desired:-0} ready=${ready:-0})" >&2
             return 1
         fi
