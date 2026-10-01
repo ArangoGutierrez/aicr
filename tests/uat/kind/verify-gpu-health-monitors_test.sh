@@ -76,6 +76,74 @@ daemonset_is_ready 0 1; check "ready exceeding desired is not ready" "1" "$?"
 daemonset_is_ready "" ""; check "empty fields are not ready" "1" "$?"
 daemonset_is_ready notanumber 1; check "a non-numeric field fails closed" "1" "$?"
 
+# --- the live verdict: driving main ----------------------------------------
+#
+# The cases above call pure helpers. The reads happen in main, and a read is
+# where a Kubernetes API error can be mistaken for a verdict, so these cases
+# drive main ITSELF with only kubectl replaced, one layer deep at the API
+# boundary, as topology-golden_test.sh drives verify-topology.sh. sleep is
+# replaced too, advancing SECONDS instead of the wall clock, so a polling case
+# costs no real time.
+#
+# Stub state is named stub_* because bash scopes dynamically: a stub closing
+# over a name main declares local (desired, ready, ...) would read main's value
+# instead of the fixture.
+CLUSTER="testcluster"
+MONITOR="gpu-health-monitor-dcgm-4.x"
+SIBLING="gpu-health-monitor-dcgm-3.x"
+ALL_WORKERS="node/testcluster-worker
+node/testcluster-worker2
+node/testcluster-worker3
+node/testcluster-worker4"
+
+# main_with <labelled-nodes> <desired> <ready> <sibling-desired> [<sibling-rc>]
+#
+# Prints main's stdout and stderr; the exit code is main's. An unstubbed read
+# fails with 97 so a case can never pass on a call this harness did not expect.
+main_with() {
+    local stub_labelled="$1" stub_desired="$2" stub_ready="$3"
+    local stub_sibling="$4" stub_sibling_rc="${5:-0}"
+    (
+        kubectl() {
+            case "$*" in
+                *" get nodes "*) [[ -z "${stub_labelled}" ]] || printf '%s\n' "${stub_labelled}" ;;
+                *" get daemonset ${MONITOR} "*desiredNumberScheduled*) printf '%s' "${stub_desired}" ;;
+                *" get daemonset ${MONITOR} "*numberReady*) printf '%s' "${stub_ready}" ;;
+                *" get daemonset ${SIBLING} "*desiredNumberScheduled*)
+                    printf '%s' "${stub_sibling}"
+                    return "${stub_sibling_rc}"
+                    ;;
+                *)
+                    echo "unstubbed kubectl call: $*" >&2
+                    return 97
+                    ;;
+            esac
+        }
+        sleep() { SECONDS=$((SECONDS + ${1%s})); }
+        MONITOR_TIMEOUT=30
+        main "${CLUSTER}" 2>&1
+    )
+}
+
+# A FAILED SIBLING LOOKUP IS NOT A ZERO. The sibling is asserted at 0, and an
+# empty read used to default to 0, so an API error, a missing RBAC verb or a
+# renamed DaemonSet all printed "correctly inactive" and passed the gate.
+out="$(main_with "${ALL_WORKERS}" 4 4 "" 1)"; rc=$?
+check "a failed sibling lookup fails the gate" "1" "${rc}"
+check "and says the lookup failed rather than calling it inactive" "1" \
+    "$(grep -cxF "error: could not read ${SIBLING}; a failed lookup does not prove it inactive" <<<"${out}")"
+out="$(main_with "${ALL_WORKERS}" 4 4 "" 0)"; rc=$?
+check "an empty sibling read fails the gate" "1" "${rc}"
+check "and names the value it could not count" "1" \
+    "$(grep -cxF "error: ${SIBLING} reported desiredNumberScheduled '', not a count" <<<"${out}")"
+# The two controls: a successful read of 0 is the inactive state, and one
+# above 0 is the mutual-exclusion failure.
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+check "a sibling read of 0 passes" "0" "${rc}"
+check "and reports the sibling inactive" "1" "$(grep -cxF "${SIBLING} is correctly inactive" <<<"${out}")"
+out="$(main_with "${ALL_WORKERS}" 4 4 2)"; rc=$?
+check "a scheduled sibling fails the gate" "1" "${rc}"
+
 # --- the lane must actually run this, and gate on it -----------------------
 #
 # A guard nobody runs is not a guard. The same reasoning topology-golden_test.sh
