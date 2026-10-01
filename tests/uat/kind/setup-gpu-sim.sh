@@ -131,9 +131,10 @@ DEVICE_PLUGIN_NAMESPACE="kube-system"
 
 # The DCGM host engine. NVSentinel's GPU health monitors are gated on the node
 # label nvsentinel.dgxc.nvidia.com/dcgm.version, which its labeler writes only
-# when it finds a Ready pod labelled app=nvidia-dcgm whose image string matches
-# `dcgm:<major>.` (labeler/pkg/labeler/labeler.go at the v1.20.0 this repo
-# pins). Nothing on that path inspects a GPU, so a real host engine reading the
+# when it finds a Ready pod labelled app=nvidia-dcgm (v1.25.0 also accepts
+# app=nvidia-dcgm-dra) whose image string matches `dcgm:<major>.`
+# (labeler/pkg/labeler/labeler.go at the v1.25.0 this repo pins). Nothing on
+# that path inspects a GPU, so a real host engine reading the
 # mocked NVML driver is enough to bring the monitors up with no hardware.
 #
 # THE REFERENCE CARRIES BOTH A TAG AND A DIGEST, deliberately. Everything else
