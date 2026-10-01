@@ -97,16 +97,28 @@ node/testcluster-worker3
 node/testcluster-worker4"
 
 # main_with <labelled-nodes> <desired> <ready> <sibling-desired> [<sibling-rc>]
+#           [<unlabelled-reads>]
 #
-# Prints main's stdout and stderr; the exit code is main's. An unstubbed read
-# fails with 97 so a case can never pass on a call this harness did not expect.
+# Prints main's stdout and stderr, then a final "label reads: N" line; the exit
+# code is main's. The first <unlabelled-reads> node reads return no node, which
+# is a labeler that has not reconciled yet. An unstubbed read fails with 97 so
+# a case can never pass on a call this harness did not expect.
 main_with() {
     local stub_labelled="$1" stub_desired="$2" stub_ready="$3"
-    local stub_sibling="$4" stub_sibling_rc="${5:-0}"
+    local stub_sibling="$4" stub_sibling_rc="${5:-0}" stub_unlabelled_reads="${6:-0}"
+    local stub_reads_log stub_rc
+    stub_reads_log="$(mktemp)"
     (
         kubectl() {
             case "$*" in
-                *" get nodes "*) [[ -z "${stub_labelled}" ]] || printf '%s\n' "${stub_labelled}" ;;
+                *" get nodes "*)
+                    # A file, not a variable: each read runs in its own
+                    # command substitution, so a counter would not persist.
+                    echo read >>"${stub_reads_log}"
+                    if (($(wc -l <"${stub_reads_log}") > stub_unlabelled_reads)); then
+                        [[ -z "${stub_labelled}" ]] || printf '%s\n' "${stub_labelled}"
+                    fi
+                    ;;
                 *" get daemonset ${MONITOR} "*desiredNumberScheduled*) printf '%s' "${stub_desired}" ;;
                 *" get daemonset ${MONITOR} "*numberReady*) printf '%s' "${stub_ready}" ;;
                 *" get daemonset ${SIBLING} "*desiredNumberScheduled*)
@@ -123,6 +135,15 @@ main_with() {
         MONITOR_TIMEOUT=30
         main "${CLUSTER}" 2>&1
     )
+    stub_rc=$?
+    echo "label reads: $(wc -l <"${stub_reads_log}" | tr -d ' ')"
+    rm -f "${stub_reads_log}"
+    return "${stub_rc}"
+}
+
+# label_reads <main_with-output>
+label_reads() {
+    sed -n 's/^label reads: //p' <<<"$1"
 }
 
 # A FAILED SIBLING LOOKUP IS NOT A ZERO. The sibling is asserted at 0, and an
@@ -143,6 +164,27 @@ check "a sibling read of 0 passes" "0" "${rc}"
 check "and reports the sibling inactive" "1" "$(grep -cxF "${SIBLING} is correctly inactive" <<<"${out}")"
 out="$(main_with "${ALL_WORKERS}" 4 4 2)"; rc=$?
 check "a scheduled sibling fails the gate" "1" "${rc}"
+
+# THE LABEL IS WRITTEN ASYNCHRONOUSLY. The labeler stamps dcgm.version from its
+# own event handlers once it runs and its caches sync, and nothing before this
+# step waits for that, so the first read can legitimately find no node. The
+# gate polls within MONITOR_TIMEOUT instead of failing on that read.
+out="$(main_with "${ALL_WORKERS}" 4 4 0 0 2)"; rc=$?
+check "labels that appear on the third read pass" "0" "${rc}"
+check "and polling stops once they do" "3" "$(label_reads "${out}")"
+# The label wait and the DaemonSet wait share one budget. Labels that arrive at
+# the deadline must still get the DaemonSet read once, not be failed because
+# the first wait spent the budget.
+out="$(main_with "${ALL_WORKERS}" 4 4 0 0 3)"; rc=$?
+check "labels arriving at the deadline still reach the DaemonSet check" "0" "${rc}"
+# A label that never appears still fails, at the deadline and not before it.
+out="$(main_with "" 4 4 0)"; rc=$?
+check "a label that never appears fails the gate" "1" "${rc}"
+check "and names the label and the budget" "1" \
+    "$(grep -cxF "error: no node carries ${DCGM_VERSION_LABEL}=4.x after 30s." <<<"${out}")"
+reads="$(label_reads "${out}")"
+check "after polling, not on the first read" "polled" \
+    "$( ((reads > 1)) && echo polled || echo "read ${reads} time(s)")"
 
 # --- the lane must actually run this, and gate on it -----------------------
 #
