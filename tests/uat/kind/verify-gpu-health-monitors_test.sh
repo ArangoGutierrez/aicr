@@ -132,8 +132,7 @@ main_with() {
             esac
         }
         sleep() { SECONDS=$((SECONDS + ${1%s})); }
-        MONITOR_TIMEOUT=30
-        main "${CLUSTER}" 2>&1
+        MONITOR_TIMEOUT=30 main "${CLUSTER}" 2>&1
     )
     stub_rc=$?
     echo "label reads: $(wc -l <"${stub_reads_log}" | tr -d ' ')"
@@ -225,5 +224,24 @@ check "conformance is gated on this step" "1" \
 # And it must not have displaced the gate that was already there.
 check "conformance is still gated on the topology step" "1" \
     "$(grep -c "steps.topology.outcome == 'success' && steps.gpu_health.outcome == 'success'" "${WORKFLOW}" | tr -d ' ')"
+
+# THE STEP MUST OUTLIVE THE SCRIPT'S OWN DEADLINE. A step timeout that fires
+# first kills the verifier before it prints which wait failed, and the run
+# shows a cancelled step instead of a cause. Past MONITOR_TIMEOUT the script
+# can still sleep one interval and finish the label read it then starts, make
+# the DaemonSet's two reads that a late label still earns, and make the sibling
+# read: four kubectl calls of up to KUBECTL_TIMEOUT each.
+step_timeout_minutes() {
+    awk -v id="$1" '
+        /^      - name:/ { in_step = 0 }
+        $0 == "        id: " id { in_step = 1 }
+        in_step && /^        timeout-minutes:/ { print $2; exit }
+    ' "${WORKFLOW}"
+}
+worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + 4 * ${KUBECTL_TIMEOUT%s}))
+step_minutes="$(step_timeout_minutes gpu_health)"
+check "the step timeout outlives the verifier's worst case of ${worst_case}s" "outlives" \
+    "$([[ "${step_minutes}" =~ ^[0-9]+$ ]] && ((step_minutes * 60 > worst_case)) &&
+        echo outlives || echo "timeout-minutes=${step_minutes:-unset}")"
 
 exit "${fail}"
