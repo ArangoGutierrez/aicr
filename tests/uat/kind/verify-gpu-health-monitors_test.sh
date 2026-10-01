@@ -180,11 +180,34 @@ check "labels arriving at the deadline still reach the DaemonSet check" "0" "${r
 # A label that never appears still fails, at the deadline and not before it.
 out="$(main_with "" 4 4 0)"; rc=$?
 check "a label that never appears fails the gate" "1" "${rc}"
-check "and names the label and the budget" "1" \
-    "$(grep -cxF "error: no node carries ${DCGM_VERSION_LABEL}=4.x after 30s." <<<"${out}")"
+check "and names the label, the budget and every worker" "1" \
+    "$(grep -cxF "error: 4 of 4 worker(s) lack nvsentinel.dgxc.nvidia.com/dcgm.version=4.x after 30s: testcluster-worker testcluster-worker2 testcluster-worker3 testcluster-worker4" <<<"${out}")"
 reads="$(label_reads "${out}")"
 check "after polling, not on the first read" "polled" \
     "$( ((reads > 1)) && echo polled || echo "read ${reads} time(s)")"
+
+# EVERY WORKER, NOT ANY NODE. The lane runs a host engine on all four workers,
+# so one labelled node and a monitor DaemonSet at 1/1 used to pass while three
+# workers had no monitor at all.
+out="$(main_with "node/testcluster-worker" 1 1 0)"; rc=$?
+check "one labelled worker of four fails the gate" "1" "${rc}"
+check "and names the three it is missing" "1" \
+    "$(grep -cxF "error: 3 of 4 worker(s) lack nvsentinel.dgxc.nvidia.com/dcgm.version=4.x after 30s: testcluster-worker2 testcluster-worker3 testcluster-worker4" <<<"${out}")"
+# By name, not by count: four labelled nodes are not four labelled workers when
+# one of them is the control plane, which must stay GPU-free.
+out="$(main_with "node/testcluster-control-plane
+node/testcluster-worker
+node/testcluster-worker2
+node/testcluster-worker3" 4 4 0)"; rc=$?
+check "a labelled control plane does not stand in for a missing worker" "1" "${rc}"
+check "and the missing worker is the one named" "1" \
+    "$(grep -cxF "error: 1 of 4 worker(s) lack nvsentinel.dgxc.nvidia.com/dcgm.version=4.x after 30s: testcluster-worker4" <<<"${out}")"
+# And the DaemonSet must cover them: every worker labelled with the monitor
+# scheduled on one of them is still three workers without one.
+out="$(main_with "${ALL_WORKERS}" 1 1 0)"; rc=$?
+check "a monitor on one of four labelled workers fails the gate" "1" "${rc}"
+check "and reports the coverage it found" "1" \
+    "$(grep -cxF "error: ${MONITOR} is not ready on all 4 worker(s) after 30s (desired=1 ready=1)" <<<"${out}")"
 
 # --- the lane must actually run this, and gate on it -----------------------
 #
