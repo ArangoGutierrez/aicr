@@ -42,6 +42,7 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # this hardware, a 905MB image took 338s cold, and the same image took over
 # 16 minutes while another large pull was in flight on the node.
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-900}"
+MONITOR_INTERVAL=10
 
 # --- pure -------------------------------------------------------------------
 
@@ -121,30 +122,40 @@ main() {
     sibling="$(monitor_sibling "${version}")" || return 1
     echo "expecting ${DCGM_VERSION_LABEL}=${version} and ${ds} to be ready"
 
-    # The labeler writes the node label only once a DCGM pod is Ready, so this
-    # failing points at the host engine rather than at NVSentinel.
-    labelled="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
-        get nodes -l "${DCGM_VERSION_LABEL}=${version}" -o name 2>/dev/null | wc -l | tr -d ' ')"
-    if [[ "${labelled}" == "0" ]]; then
-        echo "error: no node carries ${DCGM_VERSION_LABEL}=${version}." >&2
-        echo "       the labeler writes it from a Ready pod labelled app=${DCGM_NAME}" >&2
-        echo "       whose image matches dcgm:<major>. Check the host engine first." >&2
-        return 1
-    fi
+    # One budget for both waits: the DaemonSet cannot schedule before the label
+    # exists, so they are one sequence, and each loop reads before it checks
+    # the deadline so a label that lands late still gets the DaemonSet read.
+    deadline=$((SECONDS + MONITOR_TIMEOUT))
+
+    # The labeler writes the node label from its own event handlers, once a
+    # DCGM pod is Ready and its caches have synced. Nothing before this step
+    # waits for that, so an empty read is retried; one that stays empty points
+    # at the host engine rather than at NVSentinel.
+    while :; do
+        labelled="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
+            get nodes -l "${DCGM_VERSION_LABEL}=${version}" -o name 2>/dev/null | wc -l | tr -d ' ')"
+        [[ "${labelled}" != "0" ]] && break
+        if ((SECONDS >= deadline)); then
+            echo "error: no node carries ${DCGM_VERSION_LABEL}=${version} after ${MONITOR_TIMEOUT}s." >&2
+            echo "       the labeler writes it from a Ready pod labelled app=${DCGM_NAME}" >&2
+            echo "       whose image matches dcgm:<major>. Check the host engine first." >&2
+            return 1
+        fi
+        sleep "${MONITOR_INTERVAL}"
+    done
     echo "${labelled} node(s) carry ${DCGM_VERSION_LABEL}=${version}"
 
-    deadline=$(( $(date +%s) + MONITOR_TIMEOUT ))
-    while [[ "$(date +%s)" -lt "${deadline}" ]]; do
+    while :; do
         desired="$(ds_field "${context}" "${ds}" desiredNumberScheduled)"
         ready="$(ds_field "${context}" "${ds}" numberReady)"
         daemonset_is_ready "${desired:-0}" "${ready:-0}" && break
-        sleep 10
+        if ((SECONDS >= deadline)); then
+            echo "error: ${ds} is not ready after ${MONITOR_TIMEOUT}s" \
+                "(desired=${desired:-0} ready=${ready:-0})" >&2
+            return 1
+        fi
+        sleep "${MONITOR_INTERVAL}"
     done
-    if ! daemonset_is_ready "${desired:-0}" "${ready:-0}"; then
-        echo "error: ${ds} is not ready after ${MONITOR_TIMEOUT}s" \
-            "(desired=${desired:-0} ready=${ready:-0})" >&2
-        return 1
-    fi
     echo "${ds} is ready (desired=${desired} ready=${ready})"
 
     # The sibling must stay at 0. If both ever schedule, the labeler wrote two
