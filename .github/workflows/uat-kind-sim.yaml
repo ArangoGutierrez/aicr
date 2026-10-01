@@ -121,10 +121,10 @@ jobs:
     runs-on: ubuntu-latest
     # Covers the sum of the sequential step budgets (tools 10 + bootstrap 25 +
     # binary 20 + images 25 + prep 20 + install 90 + readiness 5 + topology 10 +
-    # conformance 45 + verify 5 + debug 8 = 263) plus headroom, and stays under
-    # the 360-minute cap GitHub imposes on hosted runners: a job-level value
-    # above that cap is silently clamped and the budget written here would be
-    # fiction.
+    # gpu health 20 + conformance 45 + verify 5 + debug 8 = 283) plus headroom,
+    # and stays under the 360-minute cap GitHub imposes on hosted runners: a
+    # job-level value above that cap is silently clamped and the budget written
+    # here would be fiction.
     timeout-minutes: 300
     permissions:
       contents: read
@@ -359,10 +359,14 @@ jobs:
       # After topology, so a failure here is attributable to the DCGM hop alone
       # and not confused with a Topograph problem; before conformance, so the
       # monitors are proven up before a signed evidence bundle claims them.
+      #
+      # 20 minutes, not the script's 900s MONITOR_TIMEOUT: the kubectl reads
+      # that finish after that deadline need room to report which wait failed.
+      # verify-gpu-health-monitors_test.sh pins the step above that worst case.
       - name: UAT - verify NVSentinel GPU health monitors
         id: gpu_health
         if: steps.topology.outcome == 'success'
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: ./tests/uat/kind/verify-gpu-health-monitors.sh "${KIND_CLUSTER_NAME}"
 
       - name: UAT - validate (conformance phase) + emit signed evidence
