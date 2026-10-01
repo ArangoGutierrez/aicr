@@ -148,9 +148,19 @@ main() {
     echo "${ds} is ready (desired=${desired} ready=${ready})"
 
     # The sibling must stay at 0. If both ever schedule, the labeler wrote two
-    # versions and one monitor is reading a host engine that is not there.
-    desired="$(ds_field "${context}" "${sibling}" desiredNumberScheduled)"
-    if [[ "${desired:-0}" != "0" ]]; then
+    # versions and one monitor is reading a host engine that is not there. The
+    # chart renders both DaemonSets, so a read that fails or yields no count is
+    # an error, never a 0: defaulting it would pass the gate on a lookup that
+    # never happened.
+    if ! desired="$(ds_field "${context}" "${sibling}" desiredNumberScheduled)"; then
+        echo "error: could not read ${sibling}; a failed lookup does not prove it inactive" >&2
+        return 1
+    fi
+    if [[ ! "${desired}" =~ ^[0-9]+$ ]]; then
+        echo "error: ${sibling} reported desiredNumberScheduled '${desired}', not a count" >&2
+        return 1
+    fi
+    if [[ "${desired}" != "0" ]]; then
         echo "error: ${sibling} scheduled ${desired} pod(s); the two are mutually exclusive" >&2
         return 1
     fi
