@@ -248,7 +248,7 @@ validators:
     env: []
   - name: secure-accelerator-access
     phase: conformance
-    description: "Verify secure GPU access via DRA or device plugin (no host device mounts); skips on Slinky Slurm recipes"
+    description: "Verify secure GPU access via DRA or device plugin (no host device mounts); skips on Slinky Slurm recipes, where slinky-slurm-gpu-access verifies the Slurm path"
     image: ghcr.io/nvidia/aicr-validators/conformance:latest
     timeout: 10m
     args: ["secure-accelerator-access"]

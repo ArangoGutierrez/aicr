@@ -324,7 +324,7 @@ func CheckSecureAcceleratorAccess(ctx *validators.Context) error {
 	// no spare capacity, or pass using capacity elsewhere without exercising
 	// Slurm's own isolation.
 	if recipeHasComponent(ctx, "slinky-slurm") {
-		return validators.Skip("Slurm-managed GPU allocation (slinky-slurm in recipe) is not mediated by the Kubernetes scheduler. slinky-slurm-health and slinky-slurm-imex-channel validate Slurm's own GPU access path instead")
+		return validators.Skip("Slurm-managed GPU allocation (slinky-slurm in recipe) is not mediated by the Kubernetes scheduler; slinky-slurm-gpu-access verifies Slurm's GPU access and isolation path instead")
 	}
 
 	// Bound ALL work to the check-local budget so one bounded namespace
