@@ -161,6 +161,7 @@ spec:
         - slinky-slurm-health
         # Selected only by IMEX-capable Slinky Slurm recipes.
         - slinky-slurm-imex-channel
+        - slinky-slurm-gpu-access
     performance:
       checks: []
       constraints: []
