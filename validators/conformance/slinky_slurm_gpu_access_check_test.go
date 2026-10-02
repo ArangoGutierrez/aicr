@@ -63,6 +63,7 @@ type slurmGPUExecFake struct {
 	allocated      podExecResult
 	allocatedErr   error
 	unallocated    podExecResult
+	unallocatedErr error
 	afterAllocated func()
 	commands       [][]string
 	options        []podExecOptions
@@ -80,11 +81,11 @@ func (f *slurmGPUExecFake) exec(
 		}
 		return f.allocated, f.allocatedErr
 	}
-	return f.unallocated, nil
+	return f.unallocated, f.unallocatedErr
 }
 
 var (
-	allocatedProbeOK   = podExecResult{Stdout: slurmGPUProbeStdout("slinky-0", 0, []string{testGPUUUID}, epermExcept(3))}
+	allocatedProbeOK   = podExecResult{Stdout: slurmGPUProbeStdout("slinky-0", 0, []string{testGPULine}, epermExcept(3))}
 	unallocatedProbeOK = podExecResult{Stdout: slurmGPUProbeStdout("slinky-0", 6, []string{"No devices were found"}, epermExcept(-1))}
 )
 
@@ -165,6 +166,32 @@ func TestCheckSlinkySlurmGPUAccessGates(t *testing.T) {
 			wantSkip: true,
 			wantText: "criteria are incomplete",
 		},
+		{
+			name: "concrete service with any accelerator without a GPU NodeSet skips",
+			ctx: func(t *testing.T) *validators.Context {
+				ctx := gpuSlurmTestContext(t, false, "")
+				ctx.ValidationInput.Criteria = recipe.Criteria{
+					Service:     recipe.CriteriaServiceEKS,
+					Accelerator: recipe.CriteriaAcceleratorAny,
+				}
+				return ctx
+			},
+			wantSkip: true,
+			wantText: "criteria are incomplete",
+		},
+		{
+			name: "any service with a concrete accelerator without a GPU NodeSet skips",
+			ctx: func(t *testing.T) *validators.Context {
+				ctx := gpuSlurmTestContext(t, false, "")
+				ctx.ValidationInput.Criteria = recipe.Criteria{
+					Service:     recipe.CriteriaServiceAny,
+					Accelerator: recipe.CriteriaAcceleratorH100,
+				}
+				return ctx
+			},
+			wantSkip: true,
+			wantText: "criteria are incomplete",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -224,15 +251,17 @@ func TestCheckSlinkySlurmGPUAccessPassesAndPinsIsolationJobToAllocatedNode(t *te
 
 func TestCheckSlinkySlurmGPUAccessDoesNotRunIsolationJobWhenAllocatedJobFails(t *testing.T) {
 	tests := []struct {
-		name      string
-		allocated podExecResult
-		execErr   error
-		wantErr   string
+		name       string
+		allocated  podExecResult
+		execErr    error
+		wantErr    string
+		wantOutput []string
 	}{
 		{
-			name:      "allocated job sees two GPUs",
-			allocated: podExecResult{Stdout: slurmGPUProbeStdout("slinky-0", 0, []string{testGPUUUID, "GPU-ffffffff-0000-1111-2222-333333333333"}, epermExcept(0))},
-			wantErr:   "nvidia-smi listed 2 GPUs, want exactly 1",
+			name:       "allocated job sees two GPUs",
+			allocated:  podExecResult{Stdout: slurmGPUProbeStdout("slinky-0", 0, []string{testGPULine, "GPU-ffffffff-0000-1111-2222-333333333333, Disabled"}, epermExcept(0))},
+			wantErr:    "nvidia-smi listed 2 GPUs, want exactly 1",
+			wantOutput: []string{"Verdict:          FAIL", "Unallocated job:  not run"},
 		},
 		{
 			name:    "exec to the login pod fails",
@@ -258,12 +287,17 @@ func TestCheckSlinkySlurmGPUAccessDoesNotRunIsolationJobWhenAllocatedJobFails(t 
 			ctx := gpuSlurmTestContext(t, false, "8")
 
 			var err error
-			captureStdout(t, func() { err = CheckSlinkySlurmGPUAccess(ctx) })
+			out := captureStdout(t, func() { err = CheckSlinkySlurmGPUAccess(ctx) })
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
 			}
 			if len(fake.commands) != 1 {
 				t.Fatalf("ran %d commands, want only the allocated job", len(fake.commands))
+			}
+			for _, want := range tt.wantOutput {
+				if !strings.Contains(out, want) {
+					t.Fatalf("output = %q, want containing %q", out, want)
+				}
 			}
 		})
 	}
@@ -287,6 +321,26 @@ func TestCheckSlinkySlurmGPUAccessFailsWhenUnallocatedJobOpensGPU(t *testing.T) 
 	}
 	if !strings.Contains(out, "Verdict:          FAIL") {
 		t.Fatalf("output = %q, want a FAIL summary artifact", out)
+	}
+}
+
+func TestCheckSlinkySlurmGPUAccessSummarizesUnallocatedExecFailure(t *testing.T) {
+	fake := &slurmGPUExecFake{
+		allocated:      allocatedProbeOK,
+		unallocatedErr: errors.New(errors.ErrCodeInternal, "stream closed"),
+	}
+	defer replaceSlinkyExecForTest(fake.exec)()
+	ctx := gpuSlurmTestContext(t, false, "8")
+
+	var err error
+	out := captureStdout(t, func() { err = CheckSlinkySlurmGPUAccess(ctx) })
+	if err == nil || !strings.Contains(err.Error(), "GPU isolation (unallocated job): exec failed") {
+		t.Fatalf("error = %v, want the unallocated job's exec failure", err)
+	}
+	for _, want := range []string{"Unallocated job:  ran but returned no usable result", "Verdict:          FAIL"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output = %q, want containing %q", out, want)
+		}
 	}
 }
 
