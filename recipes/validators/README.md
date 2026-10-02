@@ -75,7 +75,7 @@ or, when its fabric matches no embedded template, with the
 | `pod-autoscaling` | Verify HPA-driven pod autoscaling with GPU metrics | 10m |
 | `cluster-autoscaling` | Verify cluster autoscaling with Karpenter | 10m |
 | `robust-controller` | Verify Dynamo operator controller and webhooks | 5m |
-| `secure-accelerator-access` | Verify secure GPU access via DRA or device plugin (no host device mounts); skips on Slinky Slurm recipes, where slinky-slurm-gpu-access verifies the Slurm path | 10m |
+| `secure-accelerator-access` | Verify secure GPU access via DRA or device plugin (no host device mounts); skips on Slinky Slurm recipes, where on GPU-backed leaves slinky-slurm-gpu-access verifies the Slurm path | 10m |
 | `slinky-slurm-health` | Verify Slinky Slurm controller, node inventory, job submission, GPU execution, and enabled accounting health | 8m |
 | `slinky-slurm-imex-channel` | Verify fixed IMEX resources and distinct channels for concurrent Slinky Slurm jobs | 5m |
 | `slinky-slurm-gpu-access` | Verify a Slinky Slurm job allocated one GPU can use exactly that GPU, and a job with no GPU allocation on the same node cannot open any GPU device | 5m |
