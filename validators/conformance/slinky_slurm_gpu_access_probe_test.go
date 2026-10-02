@@ -160,6 +160,21 @@ func TestEvaluateAllocatedGPUProbe(t *testing.T) {
 			wantErr: "allocated job (--gpus=1): GPU probe output has no DONE=1 marker, so the probe did not finish",
 		},
 		{
+			name:    "no NVSMI_RC line",
+			stdout:  strings.Replace(ok, "NVSMI_RC=0\n", "", 1),
+			wantErr: "allocated job (--gpus=1): GPU probe output has no NVSMI_RC line",
+		},
+		{
+			name:    "no DEVICES_LISTED line",
+			stdout:  strings.Replace(ok, "DEVICES_LISTED=8\n", "", 1),
+			wantErr: "allocated job (--gpus=1): GPU probe output has no DEVICES_LISTED line",
+		},
+		{
+			name:    "DONE is not 1",
+			stdout:  strings.Replace(ok, "DONE=1\n", "DONE=0\n", 1),
+			wantErr: "allocated job (--gpus=1): GPU probe output has no DONE=1 marker",
+		},
+		{
 			name:    "probe aborted",
 			stdout:  ok + "PROBE_ERROR=perl not found\n",
 			wantErr: "allocated job (--gpus=1): GPU probe aborted: perl not found",
@@ -273,6 +288,11 @@ func TestEvaluateUnallocatedGPUProbe(t *testing.T) {
 			wantErr: "unallocated job (no GPU request): nvidia-smi listed 1 GPU(s) without a GPU allocation: Slurm GPU isolation is broken",
 		},
 		{
+			name:    "NVML lists a MIG device without an allocation",
+			stdout:  slurmGPUProbeStdout("slinky-0", 6, []string{"MIG-11111111-2222-3333-4444-555555555555"}, epermExcept(-1)),
+			wantErr: "unallocated job (no GPU request): nvidia-smi listed 1 GPU(s) without a GPU allocation: Slurm GPU isolation is broken",
+		},
+		{
 			name:    "probe did not finish",
 			stdout:  strings.Replace(slurmGPUProbeStdout("slinky-0", 6, nil, epermExcept(-1)), "DONE=1\n", "", 1),
 			wantErr: "unallocated job (no GPU request): GPU probe output has no DONE=1 marker",
@@ -291,6 +311,36 @@ func TestEvaluateUnallocatedGPUProbe(t *testing.T) {
 			}
 			if tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)) {
 				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestFormatSlurmGPUProbe(t *testing.T) {
+	probe, err := parseSlurmGPUProbe(slurmGPUProbeStdout("slinky-0", 0, []string{testGPUUUID}, []int{0, 1, 6}))
+	if err != nil {
+		t.Fatalf("parse error = %v", err)
+	}
+	tests := []struct {
+		name  string
+		probe slurmGPUProbe
+		want  string
+	}{
+		{
+			name:  "allocated job with one open, one denied and one inconclusive minor",
+			probe: probe,
+			want:  "node=slinky-0 nvidia-smi exit=0 GPUs=[GPU-0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0] MIG=0 CUDA_VISIBLE_DEVICES=0 device nodes listed=3 opened=1 denied(EPERM)=1 other=[/dev/nvidia2 errno 6]",
+		},
+		{
+			name:  "empty probe reports unknown node and devices",
+			probe: slurmGPUProbe{},
+			want:  "node=unknown nvidia-smi exit=0 GPUs=[] MIG=0 CUDA_VISIBLE_DEVICES=unknown device nodes listed=0 opened=0 denied(EPERM)=0 other=[]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatSlurmGPUProbe(tt.probe); got != tt.want {
+				t.Fatalf("formatSlurmGPUProbe = %q\nwant                 %q", got, tt.want)
 			}
 		})
 	}
