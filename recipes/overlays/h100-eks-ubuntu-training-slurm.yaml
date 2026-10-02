@@ -128,6 +128,7 @@ spec:
     conformance:
       checks:
         - slinky-slurm-health
+        - slinky-slurm-gpu-access
     performance:
       checks: []
       constraints: []

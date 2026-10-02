@@ -1085,10 +1085,10 @@ gb200-eks-ubuntu-training-slurm:
   019-slinky-slurm/values.yaml: 36b3e905ded091f970dd6ad98389be8e4a6481afffb6682b66370558fa99a393
   README.md: cd743008c0568e64613a3621351bdaa2504bf9f365c7702065f27bc064ebc1fa
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 7be79b83ecfef221bdf77f3de2c3a61f231058ad559c046dc7fdc4687b15d13b
-  checksums.txt: b395fdc2506038f534a8e2b22ddf9a0fb0bf3235feab20fa8e7b536ee781caba
+  bundle-info.yaml: 542fa35518cc880b59079055d005db21fea4dadac9de495ffbc4faaf546b0d34
+  checksums.txt: 98fdbca55c2e2df05254b2ec0ab24bc5aa4faa9d76c6d575857507f341563a14
   deploy.sh: 3bf1475ef39efa155a2cdff6c99ffeba55d931adf38871f8bc74467845584eae
-  recipe.yaml: 51cb34afc196f59db22ce69443302e7272bdcff00b0b363027a6cdbe56eb3236
+  recipe.yaml: 11c8288e0df4315ec08482931383ebf20ff427d0d007a7bb730f463b94581789
 gb200-gke-cos-inference-dynamo:
   001-agentgateway-crds/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-agentgateway-crds/install.sh: f0f864c4eb1f1d647af123953d5df5aa1fa03226e1f8c5feb724ea42d304eb3f
@@ -1361,10 +1361,10 @@ gb200-gke-cos-training-slurm:
   019-slinky-slurm/values.yaml: 36b3e905ded091f970dd6ad98389be8e4a6481afffb6682b66370558fa99a393
   README.md: 77013cccf74249773878eb911d4af2c86db0de11f2a0a186dcc14a61d73792fd
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 5e9b74459aa258e112617989df7250200ea4cc6487cf9de718f10f90aef6795d
-  checksums.txt: 69d6b2c5c6d4405fcbcecef31864b63b3b98d7670453681c5dbd013fa8ecc1f9
+  bundle-info.yaml: 93a53c325bbef4ee75803940c45a4bc6bc1b506ee3cf87191d9e53e8407f5ec1
+  checksums.txt: cbb1516ff3376b694f4f47ff6321fd14e36a0d316b0a31bc556546c6cad99f4c
   deploy.sh: ef955644171896a717b59c2582b0fbef5b6cab0d2f67c89924656b3aee005c73
-  recipe.yaml: 040788be46d42d2cd9b2f774bd281f53ae081b329632c3165114af82930c9a71
+  recipe.yaml: e98fc8c0a8456a8b2747a4fae82942af71ffc8c3ea4328be1b53c2b6ec33bb46
 gb200-oke-ubuntu-inference-dynamo:
   001-agentgateway-crds/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-agentgateway-crds/install.sh: f0f864c4eb1f1d647af123953d5df5aa1fa03226e1f8c5feb724ea42d304eb3f
@@ -1831,10 +1831,10 @@ gb300-eks-ubuntu-training-slurm:
   019-slinky-slurm/values.yaml: ef75bbe2e03bc4b1cf4c4f4456b31d470a7bcce3ca243af1891f9dada650c6f6
   README.md: 7ec5178e47106fc572219ead6a6e1a8c91177ab6c48edeedfc37f699a64b3067
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 8667408d8362255dfc6b3599cb0309ab5599b8888cb59daf5db4a3f193e7dac1
-  checksums.txt: e53e22de81ee489e99e4af92d22032f55e55d64e52e09e5ae57afcaee50a744e
+  bundle-info.yaml: 5861e185b34c5e08efaf976643308e1a52de3138d0ea5d513eb6799d0560c4f6
+  checksums.txt: 8123f01659024d8a87a1c70c655d767439337eadfcd7e3ea77725c4eaade3ba9
   deploy.sh: 3bf1475ef39efa155a2cdff6c99ffeba55d931adf38871f8bc74467845584eae
-  recipe.yaml: 15110dd209a0702519a3d74772c85be8bbae532cb8ac007e008febfd309b2fec
+  recipe.yaml: a303f518c37d7d0ba529b2f868ea55f4e072993f304619feb288021c08339350
 gb300-generic-ubuntu-training:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -2169,10 +2169,10 @@ h100-aks-ubuntu-training-slurm:
   019-slinky-slurm/values.yaml: 5643ef72841c8424adbe75cfb40f99691ec60c5e6498bb3a115824a3264bce9d
   README.md: af73cb4c0d378ce9f520a8d8b8eca27b9bab58e563867071147136cb6030ab36
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 0b42d8d664b0b7b407b822d1a383e023cb083887058d04ad82e10b7f83681fe1
-  checksums.txt: dfa76bd54ca5bb01a300c8fea8f68ee83a4737f8ffd9af232cfeac1b08929b5e
+  bundle-info.yaml: 95fc3f75cd5db6541944813cfbe1096c39758ca12beb2403e0ec50ac69ed8bc9
+  checksums.txt: 12009ed9060abec90ab8c5bc461501edb1674ff510bc7ff1cf6c98b68c9abd7f
   deploy.sh: 9b4d0619afbaa1425c76e4035df5a7a41bb8c10f35fd0892b7e552a3bc72d66d
-  recipe.yaml: 0b37a5c55bac20d441a5c38efcae0d24b2714f85b70374e4d5e37a75390a3643
+  recipe.yaml: 483641f4ea2801fe08a3c061910476f99fda5d8ba3b31c486d45823e405d106f
 h100-any:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -2623,10 +2623,10 @@ h100-eks-ubuntu-training-slurm:
   018-slinky-slurm/values.yaml: 5643ef72841c8424adbe75cfb40f99691ec60c5e6498bb3a115824a3264bce9d
   README.md: 7a2c2b2631c320f17839dc9f06dc5a1b206e05619ed84c151b08079b848d9d7e
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 2b8b19be8b6c995821696c34b761639d0f68728309ae0ba9b3793f107eb7474e
-  checksums.txt: 4036b0ab69e516924f546b8231a9b162cda6f444415db0f1739c595345e935fa
+  bundle-info.yaml: 9856ade14922d33b7ef8a04a903b0d941d5f34414d1eeee3f804dd3813ca4905
+  checksums.txt: e0c38affc03a81b00e20884ba3224ebb746498a81d08b52b5e9d8c76cc69422f
   deploy.sh: 3bf1475ef39efa155a2cdff6c99ffeba55d931adf38871f8bc74467845584eae
-  recipe.yaml: 9a06b986ec3bdf36f1e65f20c16b7445fac1a23e4f6c635f4fb183c9d683c431
+  recipe.yaml: 2c0a1790ebbd372389900c563cc23768bef46de65b7fff16821d1411d3dc6f2f
 h100-gke-cos-inference-dynamo:
   001-agentgateway-crds/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-agentgateway-crds/install.sh: f0f864c4eb1f1d647af123953d5df5aa1fa03226e1f8c5feb724ea42d304eb3f
@@ -2891,10 +2891,10 @@ h100-gke-cos-training-slurm:
   020-slinky-topograph/values.yaml: 433c88d6355bfefd023c111e008a39e7c07c913401708a2641717ca5a796a1dd
   README.md: 9ffec06121fc2e14304bef09888c1c94eba7c70d3b696eb31013fb412cde9ff1
   UPGRADING.md: ac50a3b91fe4d02988ef696661f8ac7d5e6854e49419d573361ad4f2b280c327
-  bundle-info.yaml: 073d75fecc226e1d0fc665012b9b290916644c624ced0ec6aba65f3562a4e5d8
-  checksums.txt: a7d302b9bdfcc6cb92ce7cade1007a477efcb526769e5f63097651436213879d
+  bundle-info.yaml: 87fb5580acfbc6555cddbd36eae7083ed89896c5fc86d16891441c65b8c2e5c5
+  checksums.txt: a01e0f394ec4b6f67864b5ea1d6cf9206becd14207d56c702ee5ea0db40c7d5f
   deploy.sh: 26b5bbeba08ab0830741d513d86fb9b24a204d48968b95c88fb5eadc9fe67cba
-  recipe.yaml: f549547a95a98040659095cb88c5f6d6bed0b3c52015930ff290604bc15d5b2f
+  recipe.yaml: 6c2eec7554e17a409866748be29e95ec077a4e4a15668dfc435d645d3a5adf11
 h100-kind-inference-dynamo:
   001-agentgateway-crds/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-agentgateway-crds/install.sh: f0f864c4eb1f1d647af123953d5df5aa1fa03226e1f8c5feb724ea42d304eb3f
