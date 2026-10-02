@@ -25,21 +25,21 @@ import (
 
 // slinkySlurmGPUProbeShell runs as a Slurm job step on a slurmd pod and prints
 // what the step can reach as KEY=value lines: the Slurm node name, the GPUs
-// NVML enumerates, and the errno of a read-only open of every GPU minor device
-// node (0 when the open succeeded). It decides nothing; the evaluate functions
-// do. Slurm confines devices with the cgroup device controller, which leaves
-// /dev/nvidiaN listed and refuses open() with EPERM, so a listed node is not
-// evidence of access. The name filter selects GPU minors only (nvidiactl,
+// NVML enumerates with each one's mig.mode.current, and the errno of a
+// read-only open of every GPU minor device node (0 when the open succeeded).
+// It decides nothing; the evaluate functions do. Slurm confines devices with
+// the cgroup device controller, which leaves /dev/nvidiaN listed and refuses
+// open() with EPERM, so a listed node is not evidence of access. The name filter selects GPU minors only (nvidiactl,
 // nvidia-uvm and nvidia-modeset do not match), and the script needs perl,
 // which the pinned slurmd-pyxis image ships. Commands whose failure would
-// erase evidence (find, the nvidia-smi line split) run outside pipelines so
-// their failure aborts the probe.
+// erase evidence (find, the nvidia-smi line split) run outside pipelines and
+// under a guard, so their failure aborts the probe.
 const slinkySlurmGPUProbeShell = nvidiaUserlandPathPrologue + `
 printf 'NODE=%s\n' "${SLURMD_NODENAME:-}"
 printf 'CUDA_VISIBLE_DEVICES=%s\n' "${CUDA_VISIBLE_DEVICES-<unset>}"
-if out="$(nvidia-smi --query-gpu=uuid --format=csv,noheader 2>&1)"; then rc=0; else rc=$?; fi
+if out="$(nvidia-smi --query-gpu=uuid,mig.mode.current --format=csv,noheader 2>&1)"; then rc=0; else rc=$?; fi
 printf 'NVSMI_RC=%s\n' "$rc"
-while IFS= read -r line; do printf 'NVSMI_LINE=%s\n' "$line"; done <<NVSMI_OUT
+while IFS= read -r line; do printf 'NVSMI_LINE=%s\n' "$line"; done <<NVSMI_OUT || { printf 'PROBE_ERROR=nvidia-smi line split failed\n'; exit 1; }
 $out
 NVSMI_OUT
 command -v perl >/dev/null 2>&1 || { printf 'PROBE_ERROR=perl not found\n'; exit 1; }
@@ -82,7 +82,7 @@ type slurmGPUProbe struct {
 	nvsmiExit          int
 	nvsmiSeen          bool
 	gpuUUIDs           []string
-	migLines           int
+	migEnabledGPUs     int
 	devicesListed      int
 	listedSeen         bool
 	devices            []slurmGPUDeviceOpen
@@ -125,11 +125,17 @@ func parseSlurmGPUProbe(stdout string) (slurmGPUProbe, error) {
 			p.nvsmiSeen = true
 		case "NVSMI_LINE":
 			entry := strings.TrimSpace(value)
-			switch {
-			case strings.HasPrefix(entry, "GPU-"):
-				p.gpuUUIDs = append(p.gpuUUIDs, entry)
-			case strings.HasPrefix(entry, "MIG-"):
-				p.migLines++
+			if !strings.HasPrefix(entry, "GPU-") {
+				continue
+			}
+			fields := strings.Split(entry, ",")
+			if len(fields) != 2 {
+				return slurmGPUProbe{}, errors.New(errors.ErrCodeInternal,
+					fmt.Sprintf(`nvidia-smi line %q is not "<uuid>, <mig.mode.current>"`, entry))
+			}
+			p.gpuUUIDs = append(p.gpuUUIDs, strings.TrimSpace(fields[0]))
+			if strings.TrimSpace(fields[1]) == "Enabled" {
+				p.migEnabledGPUs++
 			}
 		case "DEVICES_LISTED":
 			n, err := strconv.Atoi(strings.TrimSpace(value))
@@ -206,9 +212,10 @@ func evaluateAllocatedGPUProbe(p slurmGPUProbe) error {
 		return errors.New(errors.ErrCodeInternal, fmt.Sprintf(
 			"%s: nvidia-smi exited %d, so the job cannot use its allocated GPU", slurmGPUAllocatedJob, p.nvsmiExit))
 	}
-	if p.migLines > 0 {
+	if p.migEnabledGPUs > 0 {
 		return errors.New(errors.ErrCodeInternal, fmt.Sprintf(
-			"%s: nvidia-smi listed %d MIG device(s); this check expects whole GPUs", slurmGPUAllocatedJob, p.migLines))
+			"%s: nvidia-smi reports MIG mode enabled on %d GPU(s); this check verifies whole-GPU allocation only",
+			slurmGPUAllocatedJob, p.migEnabledGPUs))
 	}
 	if len(p.gpuUUIDs) != 1 {
 		return errors.New(errors.ErrCodeInternal, fmt.Sprintf(
@@ -251,7 +258,7 @@ func evaluateUnallocatedGPUProbe(p slurmGPUProbe, wantNode string) error {
 			"%s: unexpected errno opening GPU device nodes (%s); only EPERM counts as denied, so isolation is unproven",
 			slurmGPUUnallocatedJob, strings.Join(unexpected, ", ")))
 	}
-	if listed := len(p.gpuUUIDs) + p.migLines; listed > 0 {
+	if listed := len(p.gpuUUIDs); listed > 0 {
 		return errors.New(errors.ErrCodeInternal, fmt.Sprintf(
 			"%s: nvidia-smi listed %d GPU(s) without a GPU allocation: Slurm GPU isolation is broken",
 			slurmGPUUnallocatedJob, listed))
@@ -263,7 +270,7 @@ func evaluateUnallocatedGPUProbe(p slurmGPUProbe, wantNode string) error {
 func formatSlurmGPUProbe(p slurmGPUProbe) string {
 	opened, denied, unexpected := p.openCounts()
 	return fmt.Sprintf(
-		"node=%s nvidia-smi exit=%d GPUs=%v MIG=%d CUDA_VISIBLE_DEVICES=%s device nodes listed=%d opened=%d denied(EPERM)=%d other=%v",
-		valueOrUnknown(p.node), p.nvsmiExit, p.gpuUUIDs, p.migLines, valueOrUnknown(p.cudaVisibleDevices),
+		"node=%s nvidia-smi exit=%d GPUs=%v MIG-enabled=%d CUDA_VISIBLE_DEVICES=%s device nodes listed=%d opened=%d denied(EPERM)=%d other=%v",
+		valueOrUnknown(p.node), p.nvsmiExit, p.gpuUUIDs, p.migEnabledGPUs, valueOrUnknown(p.cudaVisibleDevices),
 		p.devicesListed, opened, denied, unexpected)
 }

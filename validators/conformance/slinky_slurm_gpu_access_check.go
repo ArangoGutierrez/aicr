@@ -82,7 +82,7 @@ func CheckSlinkySlurmGPUAccess(ctx *validators.Context) error {
 		return err
 	}
 	if evalErr := evaluateAllocatedGPUProbe(allocated); evalErr != nil {
-		recordSlinkySlurmGPUAccessSummary(ctx, &allocated, nil, evalErr)
+		recordSlinkySlurmGPUAccessSummary(ctx, &allocated, nil, "not run", evalErr)
 		return evalErr
 	}
 
@@ -95,11 +95,12 @@ func CheckSlinkySlurmGPUAccess(ctx *validators.Context) error {
 	unallocated, err := runSlinkySlurmGPUProbe(ctx, namespace, loginPod.Name,
 		"GPU isolation (unallocated job)", slinkySlurmGPUProbeCommand("--nodelist="+allocated.node))
 	if err != nil {
-		recordSlinkySlurmGPUAccessSummary(ctx, &allocated, nil, err)
+		recordSlinkySlurmGPUAccessSummary(ctx, &allocated, nil,
+			"ran but returned no usable result (see the GPU isolation (unallocated job) result)", err)
 		return err
 	}
 	evalErr := evaluateUnallocatedGPUProbe(unallocated, allocated.node)
-	recordSlinkySlurmGPUAccessSummary(ctx, &allocated, &unallocated, evalErr)
+	recordSlinkySlurmGPUAccessSummary(ctx, &allocated, &unallocated, "", evalErr)
 	return evalErr
 }
 
@@ -146,9 +147,13 @@ func lastNonEmptyLine(text string) string {
 	return strings.TrimSpace(lines[len(lines)-1])
 }
 
+// recordSlinkySlurmGPUAccessSummary prints unallocatedStatus in place of the
+// unallocated probe when that probe is nil: never run, or run without a
+// parseable result.
 func recordSlinkySlurmGPUAccessSummary(
 	ctx *validators.Context,
 	allocated, unallocated *slurmGPUProbe,
+	unallocatedStatus string,
 	verdict error,
 ) {
 
@@ -158,7 +163,7 @@ func recordSlinkySlurmGPUAccessSummary(
 	if unallocated != nil {
 		fmt.Fprintf(&body, "Unallocated job:  %s\n", formatSlurmGPUProbe(*unallocated))
 	} else {
-		body.WriteString("Unallocated job:  not run\n")
+		fmt.Fprintf(&body, "Unallocated job:  %s\n", unallocatedStatus)
 	}
 	if verdict == nil {
 		body.WriteString("Verdict:          PASS\n")
