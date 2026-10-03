@@ -353,11 +353,20 @@ func TestCheckSlinkySlurmGPUAccessStopsWhenCanceledBetweenJobs(t *testing.T) {
 	ctx.Ctx = base
 
 	var err error
-	captureStdout(t, func() { err = CheckSlinkySlurmGPUAccess(ctx) })
+	out := captureStdout(t, func() { err = CheckSlinkySlurmGPUAccess(ctx) })
 	if !stderrors.Is(err, errors.New(errors.ErrCodeTimeout, "")) {
 		t.Fatalf("error = %v, want ErrCodeTimeout", err)
 	}
 	if len(fake.commands) != 1 {
 		t.Fatalf("ran %d commands, want only the allocated job", len(fake.commands))
+	}
+	for _, want := range []string{
+		"Node:             slinky-0\n",
+		"Unallocated job:  not run (canceled)\n",
+		"Verdict:          FAIL: " + err.Error() + "\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output = %q, want the summary artifact containing %q", out, want)
+		}
 	}
 }
