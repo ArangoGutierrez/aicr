@@ -88,7 +88,9 @@ func CheckSlinkySlurmGPUAccess(ctx *validators.Context) error {
 
 	select {
 	case <-ctx.Ctx.Done():
-		return errors.Wrap(errors.ErrCodeTimeout, "canceled before the unallocated Slurm GPU isolation job", ctx.Ctx.Err())
+		canceledErr := errors.Wrap(errors.ErrCodeTimeout, "canceled before the unallocated Slurm GPU isolation job", ctx.Ctx.Err())
+		recordSlinkySlurmGPUAccessSummary(ctx, &allocated, nil, "not run (canceled)", canceledErr)
+		return canceledErr
 	default:
 	}
 
