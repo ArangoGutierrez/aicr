@@ -145,13 +145,15 @@ DEVICE_PLUGIN_NAMESPACE="kube-system"
 # parse. setup-gpu-sim_test.sh requires both halves.
 #
 # The version tracks what gpu-operator renders for the pinned chart, so the
-# lane exercises the same host engine a real deployment gets. To re-resolve:
+# lane exercises the same host engine a real deployment gets;
+# setup-gpu-sim_test.sh compares it with the gpu-operator section of
+# docs/user/container-images.md. To re-resolve:
 #   docker buildx imagetools inspect nvcr.io/nvidia/cloud-native/dcgm:<version>
-# Printed sha256:e30317a5... for 4.6.0-1-ubuntu24.04 on 2026-09-22, a
-# multi-arch index (linux/amd64 and linux/arm64).
+# Printed sha256:48464e50... for 4.6.1-1-ubuntu24.04 on 2026-10-05 (regctl
+# manifest digest agreed), a multi-arch index (linux/amd64 and linux/arm64).
 DCGM_REPOSITORY="nvcr.io/nvidia/cloud-native/dcgm"
-DCGM_VERSION="4.6.0-1-ubuntu24.04"
-DCGM_DIGEST="sha256:e30317a5f1e1e1c236784776d0c25ce7e48d93e18ed2a8224bb5d805aa98acb8"
+DCGM_VERSION="4.6.1-1-ubuntu24.04"
+DCGM_DIGEST="sha256:48464e50aa76671f5b204264cb4999739591112bf74330a727523f5655c6d7f2"
 # The Service name and port are NVSentinel's contract, not a preference: the
 # monitor dials nvidia-dcgm.<namespace>.svc:5555.
 DCGM_NAME="nvidia-dcgm"
