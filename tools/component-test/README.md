@@ -109,8 +109,12 @@ make component-cleanup DELETE_CLUSTER=true
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `NVML_MOCK_VERSION` | from `.settings.yaml` | nvml-mock version |
-| `NVML_MOCK_IMAGE` | `ghcr.io/nvidia/nvml-mock` | Image override |
+| `NVML_MOCK_VERSION` | from `.settings.yaml` | nvml-mock image tag only; the chart is pinned separately. Setting it drops the pinned image digest unless `NVML_MOCK_IMAGE_DIGEST` is also set |
+| `NVML_MOCK_IMAGE_DIGEST` | from `.settings.yaml` | Image index digest the image is pulled by; empty pulls by tag |
+| `NVML_MOCK_IMAGE` | `ghcr.io/nvidia/nvml-mock` | Image repository override, such as a mirror; the image digest still applies |
+| `NVML_MOCK_CHART` | from `.settings.yaml` | OCI chart reference, without `oci://` |
+| `NVML_MOCK_CHART_VERSION` | from `.settings.yaml` | Chart version. Setting it drops the pinned chart digest unless `NVML_MOCK_CHART_DIGEST` is also set. The manifest fallback refuses any version other than the one it was rendered from |
+| `NVML_MOCK_CHART_DIGEST` | from `.settings.yaml` | Chart digest the chart is pulled by; empty pulls by `NVML_MOCK_CHART_VERSION` |
 | `GPU_PROFILE` | `a100` | GPU profile: `a100`, `h100`, `gb200`. The manifest fallback, used when Helm is missing or the chart install fails, serves `a100` only |
 | `GPU_COUNT` | `8` | GPUs per node |
 | `DRIVER_VERSION` | auto from profile | Mock driver version (e.g., `550.163.01`) |
