@@ -119,13 +119,13 @@ jobs:
       github.repository == 'nvidia/aicr' &&
       github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Covers the sum of the sequential step budgets (tools 10 + bootstrap 30 +
+    # Covers the sum of the sequential step budgets (tools 10 + bootstrap 45 +
     # binary 20 + images 25 + prep 20 + install 90 + readiness 5 + topology 10 +
-    # gpu health 20 + conformance 45 + verify 5 + debug 8 = 288) plus headroom,
+    # gpu health 20 + conformance 45 + verify 5 + debug 8 = 303) plus headroom,
     # and stays under the 360-minute cap GitHub imposes on hosted runners: a
     # job-level value above that cap is silently clamped and the budget written
     # here would be fiction.
-    timeout-minutes: 300
+    timeout-minutes: 320
     permissions:
       contents: read
       id-token: write  # Sigstore keyless signing (ambient GitHub Actions OIDC)
@@ -212,10 +212,15 @@ jobs:
       # GPU-free.
       - name: Bootstrap simulated four-worker cluster
         id: bootstrap
-        # 30, not 25: the waits inside bootstrap-cluster.sh total 27.5 minutes
-        # at worst (node Ready 300s, device plugin rollout 300s, DCGM rollout
-        # 900s, capacity 150s), and the step must outlive them to report why.
-        timeout-minutes: 30
+        # The waits inside bootstrap-cluster.sh total 2250s (37.5 minutes) at
+        # worst: kind --wait 300s, node Ready 300s, nvml-mock helm --wait 300s,
+        # device plugin rollout 300s, DCGM rollout 900s, capacity poll 150s.
+        # The step must outlive them to report which one ran out. The other
+        # 7.5 minutes cover what no wait bounds: kind's node image pull and
+        # kubeadm bring-up before its wait starts, the chart pull, and the
+        # one-shot kubectl calls. bootstrap-cluster_test.sh derives the sum
+        # from the scripts and fails if this drops below it.
+        timeout-minutes: 45
         run: ./tests/uat/kind/bootstrap-cluster.sh "${KIND_CLUSTER_NAME}"
 
       - name: Footprint - after cluster and GPU simulation
