@@ -19,11 +19,11 @@
 #
 # WHY THIS IS NOT IN THE RECIPE'S HEALTH CHECK. recipes/checks/nvsentinel
 # asserts these DaemonSets tolerantly, because desiredNumberScheduled is
-# legitimately 0 wherever no DCGM pod exists, which is every lane but this one.
-# Tightening the shared check would fail those lanes for being correctly
-# configured. This lane SUPPLIES the host engine, so it is the only place that
-# can demand the monitor actually be Ready. Same split, and the same reason, as
-# verify-topology.sh.
+# legitimately 0 on any lane that supplies no DCGM host engine (gpu-operator
+# runs one by default; recipes/overlays/kind.yaml turns it off). Tightening the
+# shared check would fail those lanes for being correctly configured. This lane
+# SUPPLIES the host engine, so it can demand that the monitor is Ready and
+# connected to it. Same split, and the same reason, as verify-topology.sh.
 #
 # IT MUST FAIL, NOT SKIP. Every failure mode here is silent: the monitor sits
 # at desiredNumberScheduled 0 and nothing errors. A check that reports "no GPU
