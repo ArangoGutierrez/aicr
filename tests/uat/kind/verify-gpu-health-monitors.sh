@@ -43,6 +43,8 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # 16 minutes while another large pull was in flight on the node.
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-900}"
 MONITOR_INTERVAL=10
+# The chart names the monitor container after itself.
+MONITOR_CONTAINER="gpu-health-monitor"
 
 # --- pure -------------------------------------------------------------------
 
@@ -104,6 +106,24 @@ daemonset_is_ready() {
     ((desired > 0)) && ((ready == desired))
 }
 
+# monitor_gpu_count <log>
+#
+# Prints how many GPUs the monitor's latest DCGM initialisation watches, read
+# from its "dcgm gpu_id are [...]" line (gpu_health_monitor/dcgm_watcher/
+# dcgm.py:1098 at v1.25.0). The monitor logs it only after it has connected,
+# grouped every supported GPU DCGM discovered and set its health watches. That
+# makes it the evidence numberReady is not: readiness is GET /metrics, served
+# once the HTTP server starts, and the watch loop stays alive while it retries
+# a host engine it cannot reach. Fails with no output when there is no line.
+monitor_gpu_count() {
+    local line count
+    line="$(sed -nE 's/.*dcgm gpu_id are \[([0-9, ]*)\].*/ids:\1/p' <<<"$1" | tail -1)"
+    [[ -n "${line}" ]] || return 1
+    # grep -c exits 1 on a count of 0, which is still an answer.
+    count="$(tr ',' '\n' <<<"${line#ids:}" | grep -c '[0-9]')"
+    printf '%s' "${count}"
+}
+
 # worker_nodes <cluster>
 #
 # The workers setup-gpu-sim.sh runs a host engine on, one name per line, which
@@ -131,6 +151,17 @@ unlabelled_workers() {
 
 # --- live -------------------------------------------------------------------
 
+# monitor_pods <context> <daemonset>
+#
+# Prints "<node> <pod>" for each pod <daemonset> owns, one per line.
+monitor_pods() {
+    local context="$1" ds="$2"
+    kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
+        get pods -n "${NVSENTINEL_NAMESPACE}" \
+        -o "jsonpath={range .items[?(@.metadata.ownerReferences[0].name==\"${ds}\")]}{.spec.nodeName}{\" \"}{.metadata.name}{\"\\n\"}{end}" \
+        2>/dev/null
+}
+
 ds_field() {
     local context="$1" name="$2" field="$3"
     kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
@@ -142,6 +173,7 @@ main() {
     local cluster="${1:-${DEFAULT_CLUSTER_NAME}}"
     local context="kind-${cluster}" version ds sibling desired ready
     local workers expected labelled missing deadline
+    local pods node pod logs count problems
 
     version="$(expected_dcgm_major "$(dcgm_image_ref)")" || return 1
     ds="$(monitor_daemonset "${version}")" || return 1
@@ -190,6 +222,44 @@ main() {
         sleep "${MONITOR_INTERVAL}"
     done
     echo "${ds} is ready (desired=${desired} ready=${ready})"
+
+    # Ready is not connected, so every worker's monitor must also show that it
+    # reached a host engine and is watching that worker's GPUs. The monitor
+    # waits one poll interval before its first connect, so the evidence can
+    # trail readiness and is polled for in the same budget.
+    while :; do
+        problems=""
+        pods="$(monitor_pods "${context}" "${ds}")"
+        while IFS= read -r node; do
+            [[ -n "${node}" ]] || continue
+            pod="$(awk -v n="${node}" '$1 == n { print $2; exit }' <<<"${pods}")"
+            if [[ -z "${pod}" ]]; then
+                problems+="${node} (no monitor pod)"$'\n'
+                continue
+            fi
+            if ! logs="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
+                logs -n "${NVSENTINEL_NAMESPACE}" "${pod}" -c "${MONITOR_CONTAINER}" 2>/dev/null)"; then
+                problems+="${node} (logs unreadable)"$'\n'
+                continue
+            fi
+            if ! count="$(monitor_gpu_count "${logs}")"; then
+                problems+="${node} (no 'dcgm gpu_id are' line)"$'\n'
+            elif [[ "${count}" != "${GPUS_PER_WORKER}" ]]; then
+                problems+="${node} (${count} GPU(s))"$'\n'
+            fi
+        done <<<"${workers}"
+        [[ -z "${problems}" ]] && break
+        if ((SECONDS >= deadline)); then
+            echo "error: $(grep -c . <<<"${problems}") of ${expected} monitor(s) show no DCGM connection" \
+                "with ${GPUS_PER_WORKER} GPU(s) after ${MONITOR_TIMEOUT}s:" \
+                "$(grep . <<<"${problems}" | paste -sd ' ' -)" >&2
+            echo "       a connected monitor logs 'dcgm gpu_id are [...]'; read that worker's monitor log" >&2
+            echo "       and check the host engine on the same node." >&2
+            return 1
+        fi
+        sleep "${MONITOR_INTERVAL}"
+    done
+    echo "all ${expected} monitor(s) connected to DCGM and watch ${GPUS_PER_WORKER} GPU(s) each"
 
     # The sibling must stay at 0. If both ever schedule, the labeler wrote two
     # versions and one monitor is reading a host engine that is not there. The
