@@ -15,8 +15,9 @@
 name: UAT - Kind (simulated GPUs)
 
 # The Slurm UAT lane (issue #2358). A four-worker kind cluster whose GPU
-# capacity is SIMULATED (a mocked NVML driver tree plus a device plugin
-# pointed at it, tests/uat/kind/setup-gpu-sim.sh), on a GitHub-hosted runner.
+# capacity is SIMULATED (a mocked NVML driver tree, a device plugin pointed at
+# it, and a real DCGM host engine reading it, tests/uat/kind/setup-gpu-sim.sh),
+# on a GitHub-hosted runner.
 #
 # WHY THIS IS NOT A CELL OF uat-kind.yaml. The two lanes need different
 # clusters, and neither can serve the other:
@@ -41,8 +42,10 @@ name: UAT - Kind (simulated GPUs)
 # libnvidia-ml.so.1 under the pinned driver root `/`, where the mocked driver
 # tree is not. Both need a real (or pre-baked) driver stack on the node, which
 # this lane deliberately does not build. It therefore validates the Slurm,
-# Slinky and topograph path and NOT the GPU stack, and a regression in either
-# excluded component will not be caught here.
+# Slinky and topograph path, plus NVSentinel's GPU health monitor connected to
+# the lane's own DCGM host engine (the gpu_health step below), and NOT the rest
+# of the GPU stack; a regression in either excluded component will not be
+# caught here.
 #
 # IT ALSO DOES NOT RUN THE DEPLOYMENT VALIDATION PHASE, which follows from those
 # exclusions: `aicr validate` validates the recipe rather than the deployed
