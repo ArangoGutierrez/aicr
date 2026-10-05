@@ -93,8 +93,11 @@ log_info "Image: ${NVML_MOCK_IMAGE}:${NVML_MOCK_IMAGE_TAG}"
 verify_mock_staged() {
     log_info "Verifying nvml-mock staged the mock driver..."
     local mock_pod
+    # A wildcard, not items[0]: indexing an empty list is a jsonpath error,
+    # which set -e turns into a silent exit before the diagnostic below.
     mock_pod=$(kubectl get pods -n nvml-mock -l app.kubernetes.io/name=nvml-mock \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        -o jsonpath='{.items[*].metadata.name}')
+    mock_pod="${mock_pod%% *}"
     if [[ -z "$mock_pod" ]]; then
         log_error "nvml-mock DaemonSet present but no pod matches app.kubernetes.io/name=nvml-mock"
         exit 1
