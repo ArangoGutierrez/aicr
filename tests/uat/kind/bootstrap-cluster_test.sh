@@ -239,4 +239,67 @@ check "the lane takes no reservation" "0" \
 check "the lane runs no TrainJob CUJ" "0" \
     "$(operative "${WORKFLOW}" | grep -cE 'run-sim +train' | tr -d ' ')"
 
+# --- the CI step outlives the bootstrap's own waits ------------------------
+#
+# A step timeout that fires first kills the bootstrap mid-wait, and the run
+# shows a cancelled step instead of the wait that ran out. The budget was
+# summed by hand twice and both sums missed waits, so it is derived here from
+# the real sequence: the stubs log every wait budget and every poll sleep
+# while main runs, including in the setup-gpu-sim.sh child, which is why they
+# are exported and log to a file. No capacity ever appears, so
+# wait_for_capacity spends its whole poll budget.
+WAIT_LOG="$(mktemp "${TMPDIR:-/tmp}/bootstrap-waits.XXXXXX")"
+export WAIT_LOG
+# record_budget <tool> <flag> <argv...> logs the seconds given to <flag>,
+# whether passed as `<flag> <v>` or `<flag>=<v>`. The flag is per tool because
+# `--wait` takes the budget for kind but is a bare switch for helm.
+# shellcheck disable=SC2329  # invoked indirectly, by the stubs below
+record_budget() {
+    local tool="$1" flag="$2" arg value="" take=0
+    shift 2
+    for arg in "$@"; do
+        if ((take)); then
+            value="${arg}"
+            take=0
+        elif [[ "${arg}" == "${flag}" ]]; then
+            take=1
+        elif [[ "${arg}" == "${flag}="* ]]; then
+            value="${arg#"${flag}"=}"
+        fi
+    done
+    [[ -n "${value}" ]] && printf '%s %s\n' "${tool}" "${value%s}" >>"${WAIT_LOG}"
+    return 0
+}
+# shellcheck disable=SC2329  # invoked indirectly, by main and setup-gpu-sim.sh
+kind() { record_budget kind --wait "$@"; }
+# Drains a piped manifest: an unread pipe SIGPIPEs the heredoc producer, and
+# setup-gpu-sim.sh's pipefail turns that into a failed install.
+# shellcheck disable=SC2329
+kubectl() {
+    case " $* " in *" -f - "*) cat >/dev/null ;; esac
+    record_budget kubectl --timeout "$@"
+}
+# shellcheck disable=SC2329
+helm() { record_budget helm --timeout "$@"; }
+# shellcheck disable=SC2329
+sleep() { printf 'sleep %s\n' "$1" >>"${WAIT_LOG}"; }
+export -f record_budget kind kubectl helm sleep
+main testcluster >/dev/null 2>&1
+unset -f record_budget kind kubectl helm sleep
+
+# Proves the harness reached every wait, so the comparison below cannot pass
+# on a run that stopped early: kind's create wait, the node Ready wait, the
+# nvml-mock install, the two rollouts, then the capacity poll (its sleeps
+# folded into one entry).
+check "the harness observed every bootstrap wait in order" \
+    "kind kubectl helm kubectl kubectl sleep" \
+    "$(awk '$1 == "sleep" && prev == "sleep" { next } { print $1; prev = $1 }' "${WAIT_LOG}" |
+        tr '\n' ' ' | sed 's/ $//')"
+wait_budget="$(awk '{sum += $2} END {print sum + 0}' "${WAIT_LOG}")"
+rm -f "${WAIT_LOG}"
+bootstrap_minutes="$(yq -r '.jobs["uat-kind-sim"].steps[] | select(.id == "bootstrap") | ."timeout-minutes"' "${WORKFLOW}")"
+check "the bootstrap step outlives its ${wait_budget}s of waits" "outlives" \
+    "$([[ "${bootstrap_minutes}" =~ ^[0-9]+$ ]] && ((bootstrap_minutes * 60 > wait_budget)) &&
+        echo outlives || echo "timeout-minutes=${bootstrap_minutes:-unset}")"
+
 exit "${fail}"
