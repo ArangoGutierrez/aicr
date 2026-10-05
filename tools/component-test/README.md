@@ -172,6 +172,8 @@ make component-cleanup COMPONENT=cert-manager DELETE_CLUSTER=true
 
 For components requiring GPU resources: ensure `.settings.yaml` has `testing.component_test.nvml_mock_version`. GPU references in `values.yaml` or registry entries auto-detect; override via `TIER=gpu-aware` or set `testTier: gpu-aware` in `registry.yaml`. Customize: `GPU_PROFILE=h100 GPU_COUNT=4 make component-test ...`.
 
+This harness deploys one component at a time with its chart's values. To deploy a whole Kind bundle (NFD, gpu-operator, and the DRA driver) on mocked GPUs, the Kind recipe's values need eight bundle-time overrides that point the operands at the mock driver root, and the cluster needs the Mokka node image. [`.github/workflows/gpu-operator-mokka-test.yaml`](../../.github/workflows/gpu-operator-mokka-test.yaml) runs that end to end; its header lists the setup steps and its "Generate the Kind recipe and bundle it for Mokka" step carries the overrides and why each is needed.
+
 ## Troubleshooting
 
 | Issue | Check |

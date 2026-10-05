@@ -327,15 +327,17 @@ testing:
     # error was discarded and the script fell through to its manifest
     # fallback, so the Helm path had never once succeeded.
     #
-    # COUPLED to the mokka-mock gpuStack values in recipes/overlays/kind.yaml.
-    # Measured on 0.4.0-rc2: the mock driver tree is readable at BOTH
-    # /var/lib/nvml-mock/driver and /run/nvidia/driver, so the profile's
-    # explicit driver root still resolves. Mokka main has since moved to
-    # bind-mounting onto /run/nvidia/driver only and dropped the
-    # NVIDIA_DRIVER_ROOT overrides from its own GPU Operator guide
-    # (k8s-test-infra e8e49aeb). Advancing this pin past that change means
-    # revisiting the profile: the three NVIDIA_DRIVER_ROOT entries become
-    # unnecessary and should be removed rather than repointed.
+    # COUPLED to the bundle overrides in
+    # .github/workflows/gpu-operator-mokka-test.yaml ("Generate the Kind
+    # recipe and bundle it for Mokka"). Measured on 0.4.0-rc2: the mock driver
+    # tree is readable at BOTH /var/lib/nvml-mock/driver and
+    # /run/nvidia/driver, so the overrides' explicit driver root still
+    # resolves. Mokka main has since moved to bind-mounting onto
+    # /run/nvidia/driver only and dropped the NVIDIA_DRIVER_ROOT overrides from
+    # its own GPU Operator guide (k8s-test-infra e8e49aeb). Advancing this pin
+    # past that change means revisiting the overrides: the three
+    # NVIDIA_DRIVER_ROOT entries become unnecessary and should be removed
+    # rather than repointed.
     nvml_mock_chart: 'ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock'
     nvml_mock_chart_version: '0.4.0-rc2'
     # The chart and the image are installed by DIGEST; the two version keys
