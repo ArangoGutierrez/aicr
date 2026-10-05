@@ -316,8 +316,10 @@ check "the Service exposes 5555" "1" \
 # Without the policy kube-proxy spreads connections across all four workers and
 # every monitor still comes up Ready. GPU Operator's own nvidia-dcgm Service
 # sets the same field (assets/state-dcgm/0500_service.yaml at v26.7.1).
-check "the Service routes only to the caller's node" "1" \
-    "$(dcgm_manifest | awk '/^kind: Service$/,0' | grep -cE '^  internalTrafficPolicy: Local$' | tr -d ' ')"
+# Read by path rather than by indent: under metadata the line has the same
+# indent and the policy does nothing.
+check "the Service routes only to the caller's node" "Local" \
+    "$(dcgm_manifest | yq -r 'select(.kind == "Service") | .spec.internalTrafficPolicy')"
 
 # 5. The host engine image is ~2GB and is not side-loaded, so it cannot share
 #    the device plugin's 300s rollout budget. A wait that expires on a cold
