@@ -23,23 +23,26 @@
 # ship.
 #
 # The ConfigMap is one GPU profile, verbatim, so the fallback serves that
-# profile alone. setup-gpu-mock.sh reads the two lines below and refuses a
-# different profile or chart pin instead of deploying a mismatched mock.
+# profile alone. setup-gpu-mock.sh reads the lines below and refuses a
+# different profile or chart pin instead of deploying a mismatched mock. The
+# image placeholders are filled from the same pins as the Helm path, so the
+# image is pulled by digest here too.
 #
 # nvml-mock-chart-version: 0.4.0-rc2
+# nvml-mock-chart-digest: sha256:341389c379afea8dfe53e7af46ad8199a6588d3629d2005985ccbdcde35511ce
 # nvml-mock-profile: a100
 #
-# To regenerate after a chart pin bump, render with the new version and the
-# same arguments:
-#   helm template nvml-mock oci://ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock \
-#     --version <ver> --namespace nvml-mock --set gpu.profile=a100 \
+# To regenerate after a chart pin bump, render from the new nvml_mock_chart_digest
+# in .settings.yaml with the same arguments:
+#   helm template nvml-mock oci://ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock@<digest> \
+#     --namespace nvml-mock --set gpu.profile=a100 \
 #     --set gpu.count=8 --set image.repository=NVML_MOCK_IMAGE_PLACEHOLDER \
 #     --set image.tag=NVML_MOCK_VERSION_PLACEHOLDER \
 #     --set driverVersion=DRIVER_VERSION_PLACEHOLDER
 # then set the GPU_COUNT env value to "GPU_COUNT_PLACEHOLDER" (the only line
 # gpu.count reaches), delete the helm.sh/chart and managed-by labels, the
 # integrations-fgo comment block and trailing whitespace, and update the
-# chart version above.
+# chart version and digest above.
 ---
 apiVersion: v1
 kind: Namespace
