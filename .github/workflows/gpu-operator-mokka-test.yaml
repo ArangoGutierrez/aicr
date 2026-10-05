@@ -32,8 +32,22 @@
 # GPUDirect/RDMA data paths, driver and firmware lifecycle, MIG, IMEX daemons
 # or ComputeDomain allocation, or anything timing- or throughput-sensitive.
 # The cuda validator workload and the DRA feature gates that need a 570+
-# driver are disabled by the mokka-mock profile value for exactly this reason.
+# driver are disabled by the bundle overrides below for exactly this reason.
 # Those keep needing the hardware lanes, which this lane does not replace.
+#
+# To reproduce it outside CI, the steps below are the whole procedure:
+#   1. Create a Kind cluster from the Mokka node image
+#      (testing.mokka_kind_node_image in .settings.yaml) with at least one
+#      worker. A stock kindest/node has no nvidia containerd runtime handler,
+#      which every GPU Operator operand requests, so its operands cannot start.
+#      The recipe keeps GPU operands off the control plane.
+#   2. Install the nvml-mock chart as "Install Mokka nvml-mock" does: chart and
+#      image by the digests in testing.component_test, and
+#      imex.mockChannels.enabled=true, which the DRA kubelet plugin needs.
+#   3. Generate the Kind recipe and bundle it with the overrides in "Generate
+#      the Kind recipe and bundle it for Mokka". Without them the bundle points
+#      every operand at the host driver root that nvkind provides and a Mokka
+#      node does not have.
 name: GPU Operator on Mokka (GPU-free)
 
 on:
@@ -193,10 +207,10 @@ jobs:
       - name: Install Mokka nvml-mock
         run: |
           set -euo pipefail
-          # imex.mockChannels is off in the chart by default. The mokka-mock
-          # value points the DRA driver's altProcDevices at the proc-devices
-          # file it stages, a hostPath of type File, so without it the kubelet
-          # plugin stays in Init on a failed mount.
+          # imex.mockChannels is off in the chart by default. The bundle
+          # points the DRA driver's altProcDevices at the proc-devices file it
+          # stages, a hostPath of type File, so without it the kubelet plugin
+          # stays in Init on a failed mount.
           #
           # The chart is pulled by digest with no --version: helm would
           # re-resolve the tag and fail the lane on an upstream re-tag. The
@@ -214,13 +228,63 @@ jobs:
             --wait --timeout 300s
           kubectl rollout status daemonset/nvml-mock -n mokka --timeout=300s
 
-      - name: Generate and bundle the Kind recipe with gpuStack=mokka-mock
+      - name: Generate the Kind recipe and bundle it for Mokka
         run: |
           set -euo pipefail
+          # The Kind recipe targets nvkind: a driver installed on the host, read
+          # by every operand from the host root. Mokka stages a mock driver
+          # userspace from a DaemonSet instead, with no host driver, no kernel
+          # module and no GPU, so each operand is pointed at that staged root.
+          #
+          # These are bundle-time overrides, not a recipe profile. A profile
+          # value must carry a constraint that tells it apart from its siblings
+          # (ADR-015), and a Kind node carries no GPU-identifying reading until
+          # NFD and the operands run, after the point a constraint is
+          # evaluated, so a Kind profile could not be checked against the
+          # cluster.
+          #
+          # COUPLED to the nvml-mock pin in .settings.yaml
+          # (testing.component_test), which publishes the tree at
+          # /var/lib/nvml-mock/driver. A later Mokka bind-mounts it onto
+          # /run/nvidia/driver instead, at which point the three
+          # NVIDIA_DRIVER_ROOT entries should be dropped rather than
+          # repointed. Revisit them with any bump of that pin.
+          root=/var/lib/nvml-mock/driver
+          env_json() { printf '[{"name":"%s","value":"%s"}]' "$1" "$2"; }
+          overrides=(
+            --set-json "gpuoperator:devicePlugin.env=$(env_json NVIDIA_DRIVER_ROOT "$root")"
+            --set-json "gpuoperator:gfd.env=$(env_json NVIDIA_DRIVER_ROOT "$root")"
+            --set-json "gpuoperator:dcgmExporter.env=$(env_json NVIDIA_DRIVER_ROOT "$root")"
+            # No kernel module exists to load, so symlink creation aborts
+            # driver-validation with "failed to load module nvidia: chroot:
+            # can't execute '/sbin/modprobe'". gpu-operator names this exact
+            # opt-out in that error.
+            --set-json "gpuoperator:validator.driver.env=$(env_json DISABLE_DEV_CHAR_SYMLINK_CREATION true)"
+            # Mokka simulates the NVML contract, not CUDA execution. Left on,
+            # the validator's vectorAdd fails with "CUDA driver version is
+            # insufficient for CUDA runtime version" and holds
+            # operator-validator at Init:2/4. This is the boundary of what a
+            # mocked lane can claim: scheduling and discovery are exercised,
+            # kernel execution is not.
+            --set-json "gpuoperator:validator.cuda.env=$(env_json WITH_WORKLOAD false)"
+            --set "dradriver:nvidiaDriverRoot=$root"
+            # computeDomains stays enabled, as everywhere in the catalog. Its
+            # kubelet plugin reads the nvidia-caps-imex-channels major from
+            # /proc/devices, which has no such entry without a kernel module,
+            # and crash-loops on "error parsing '/proc/devices'". nvml-mock
+            # stages a substitute there when installed with
+            # imex.mockChannels.enabled=true.
+            --set "dradriver:altProcDevices=/var/lib/nvml-mock/imex/proc-devices"
+            # IMEXDaemonsWithDNSNames refuses to start below driver 570.158.01,
+            # and every nvml-mock GPU profile except gb200 reports an older one
+            # (h100: 550.163.01). ComputeDomainCliques refuses to start without
+            # it, so both go off.
+            --set-json 'dradriver:featureGates={"ComputeDomainCliques":false,"IMEXDaemonsWithDNSNames":false}'
+          )
           ./bin/aicr recipe --service kind --accelerator "$GPU_PROFILE" --intent training \
-            --profile gpuStack=mokka-mock --output /tmp/recipe.yaml
-          ./bin/aicr bundle --recipe /tmp/recipe.yaml --output /tmp/bundle
-          # Fail loudly if the profile did not take: the whole lane is
+            --output /tmp/recipe.yaml
+          ./bin/aicr bundle --recipe /tmp/recipe.yaml --output /tmp/bundle "${overrides[@]}"
+          # Fail loudly if the overrides did not take: the whole lane is
           # meaningless if the rendered values still point at the host root.
           grep -q '/var/lib/nvml-mock/driver' /tmp/bundle/*gpu-operator/values.yaml
           grep -q 'altProcDevices: /var/lib/nvml-mock/imex/proc-devices' /tmp/bundle/*nvidia-dra-driver-gpu/values.yaml

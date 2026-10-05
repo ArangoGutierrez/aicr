@@ -3575,7 +3575,7 @@ h100-kind-inference-dynamo:
   012-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   012-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   012-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  012-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
+  012-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
   013-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   013-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   013-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3591,7 +3591,7 @@ h100-kind-inference-dynamo:
   016-nvidia-dra-driver-gpu/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   016-nvidia-dra-driver-gpu/install.sh: 6d3aa21c099c4d498707247ec21fb53f18a82dcef3408e0f977d3e0be4c36331
   016-nvidia-dra-driver-gpu/upstream.env: 2b81f487848614f9b0167e48f2f8c65a057048f4c1e7b99b34a1ddc899c90ff0
-  016-nvidia-dra-driver-gpu/values.yaml: b5cc13fc6b12cb7f0931904f0c359a3c830a8dc16a2d54fe68eaa289339ce81c
+  016-nvidia-dra-driver-gpu/values.yaml: ba24921d21e6a64248d0bea9636b11d0232ca3d918b019aa30478a2520a7f0af
   017-nvsentinel/apply-crds.sh: a8c6ebf48c8b77370d9dcf5e07a7634f84f8e5b606932658a9b2edf116e6affa
   017-nvsentinel/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   017-nvsentinel/install.sh: 290c0907c263ac3c1a976be76da13528e36fe7f1db79945783b6ac7da4588857
@@ -3603,10 +3603,10 @@ h100-kind-inference-dynamo:
   018-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: c98cad2dfd4cd47eee21a67efbaac2129b769643f30c7ab1c6eb03ecef92bede
   UPGRADING.md: 668b1aba11148b80ac92ea8e793d263cabba6a615aad52f1b3df7f83007e446f
-  bundle-info.yaml: e2355aed79b29bece0a4bb1e1c34a5fa320b2cdec7f64dda42dcffc904b8601e
-  checksums.txt: 496da63eb400ec6437ec991ce29509c6657947d64359ad73ee4aa7d9e9449656
+  bundle-info.yaml: a3a49f04be0026b48c577288adced123a55900f25348b0cbed39d35a2eccd810
+  checksums.txt: 42222f3ca5ecb4d616dbbef350d737eea067f9b33b8a53e8b8a0d61bf6751db9
   deploy.sh: fc332287efdf91cc0ea399c6b5227ed2bb2fac9577a14311a44f24646cd09ad2
-  recipe.yaml: 2de43eb6a02ade262726078601d92f11cf0302dbd882744ec564611cb5584141
+  recipe.yaml: d657723de073f4d7fce48a12cab2658b419e202ff2f6881a1594810e7bb87053
 h100-kind-training-kubeflow:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3635,7 +3635,7 @@ h100-kind-training-kubeflow:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
+  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3656,7 +3656,7 @@ h100-kind-training-kubeflow:
   012-nvidia-dra-driver-gpu/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   012-nvidia-dra-driver-gpu/install.sh: 6d3aa21c099c4d498707247ec21fb53f18a82dcef3408e0f977d3e0be4c36331
   012-nvidia-dra-driver-gpu/upstream.env: 2b81f487848614f9b0167e48f2f8c65a057048f4c1e7b99b34a1ddc899c90ff0
-  012-nvidia-dra-driver-gpu/values.yaml: b5cc13fc6b12cb7f0931904f0c359a3c830a8dc16a2d54fe68eaa289339ce81c
+  012-nvidia-dra-driver-gpu/values.yaml: ba24921d21e6a64248d0bea9636b11d0232ca3d918b019aa30478a2520a7f0af
   013-nvsentinel/apply-crds.sh: a8c6ebf48c8b77370d9dcf5e07a7634f84f8e5b606932658a9b2edf116e6affa
   013-nvsentinel/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   013-nvsentinel/install.sh: 290c0907c263ac3c1a976be76da13528e36fe7f1db79945783b6ac7da4588857
@@ -3668,10 +3668,10 @@ h100-kind-training-kubeflow:
   014-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 8b8e7dcf4aa5595f8332b85821c37985bfe69e86b76a37ada909e0fc05c7beeb
   UPGRADING.md: 9444e3b2469985d89ae8fd6bb0ca9116e56c2904f9aff6929487211120b75484
-  bundle-info.yaml: 4481f8d95d08824343ae146b2ad0722cce6c7f604432551e0cb2b7d3db12a152
-  checksums.txt: f93682169f6c22ec83fd16104abe3116a3de03ce1e1eadd4ffac8c59ffc6bc40
+  bundle-info.yaml: 034d386831989b18d1b36425f2ad52ac5372565e8182d2739675ada3ad5993a9
+  checksums.txt: a11f1ac1b3162ed4666b9bf9fe345db9c68e1ee07e350a33c842f629b66d20e3
   deploy.sh: 585028988d2cdbd7fad24e6a6aa04e416399fb8c675ac560c1ea2cf01e76def6
-  recipe.yaml: 66cc8a97654d03c28bbfc00fb180f22376a6e785b9464e0a2950a278f7b012b5
+  recipe.yaml: daf77407126a3c7df7d511ffb77bb7cd15bb03e887b3d598cce7d7cc50dda3b1
 h100-kind-training-kueue:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3700,7 +3700,7 @@ h100-kind-training-kueue:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
+  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3712,7 +3712,7 @@ h100-kind-training-kueue:
   010-nvidia-dra-driver-gpu/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   010-nvidia-dra-driver-gpu/install.sh: 6d3aa21c099c4d498707247ec21fb53f18a82dcef3408e0f977d3e0be4c36331
   010-nvidia-dra-driver-gpu/upstream.env: 2b81f487848614f9b0167e48f2f8c65a057048f4c1e7b99b34a1ddc899c90ff0
-  010-nvidia-dra-driver-gpu/values.yaml: b5cc13fc6b12cb7f0931904f0c359a3c830a8dc16a2d54fe68eaa289339ce81c
+  010-nvidia-dra-driver-gpu/values.yaml: ba24921d21e6a64248d0bea9636b11d0232ca3d918b019aa30478a2520a7f0af
   011-nvsentinel/apply-crds.sh: a8c6ebf48c8b77370d9dcf5e07a7634f84f8e5b606932658a9b2edf116e6affa
   011-nvsentinel/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   011-nvsentinel/install.sh: 290c0907c263ac3c1a976be76da13528e36fe7f1db79945783b6ac7da4588857
@@ -3740,10 +3740,10 @@ h100-kind-training-kueue:
   015-kueue-post/values.yaml: 9ae0af1abd28154ef1efc514bd20ee1daf35cfccbfaa0c6d97e08092b211d6fc
   README.md: f1e44cb3ac64c9a238129f81df52ef4f91296f1a7a621209977b27cc65c98986
   UPGRADING.md: 3da0e0d2a3d4866a1518c6703cd8f862cb5186961d9448b0e75b9a9461bb6707
-  bundle-info.yaml: a5828c04d44a0cf19f5bbc0e6e405b9fd7941d686b51105f564ad51a20bf4c50
-  checksums.txt: 678f50a987d7634975f070c2247a263bac4d487797a0d11601fb1f8108ab3989
+  bundle-info.yaml: f88856194d3828924538d530be63e57d60ffe7706fc89949668eb39fe1bf3956
+  checksums.txt: c3ccf2ba7866923feb3b62af0f4dd028fd12779e8e451c4225e672d08f3d5b9a
   deploy.sh: 706a8d58c6b713b9376215029a49a213fc943bdecab7cd7d4ea7d7ef2d86e692
-  recipe.yaml: eec57e6f6523ab9b6f3c48346f75b9778084aa19d6284f1ea0f6f5318b6e71c1
+  recipe.yaml: cde3c858ef646aa6f0256fdf5481713ad96781525fcc481e0db8ee8395f079ef
 h100-kind-training-slurm:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -3772,7 +3772,7 @@ h100-kind-training-slurm:
   007-gpu-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   007-gpu-operator/install.sh: d915425e3e50879e33e4600ef0386c39137aa1fe88c2a40428593f278dfbf986
   007-gpu-operator/upstream.env: 7ffe32c2e799396b13d0fefc870cdab28e82e363681d0d5301c09d3d98c3ffdd
-  007-gpu-operator/values.yaml: 4f927eb01fa1064c86686e82f20eb5f2aa6f6f2c82ee104efe004f7c8391b39e
+  007-gpu-operator/values.yaml: 0ac41de3e799598d7fa704d1fd9c4c2dda384d7c593e38ac7847f73c13f3369a
   008-kai-scheduler/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-kai-scheduler/install.sh: 529a6fd19ca71cbf0d2f5bcf40ce817db93713c5c0183e59d690bff9745f95cc
   008-kai-scheduler/upstream.env: 28796b9c560ab50439fa444585d161dfdb838c82420680a85a0e6eeef3fb7af0
@@ -3784,7 +3784,7 @@ h100-kind-training-slurm:
   010-nvidia-dra-driver-gpu/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   010-nvidia-dra-driver-gpu/install.sh: 6d3aa21c099c4d498707247ec21fb53f18a82dcef3408e0f977d3e0be4c36331
   010-nvidia-dra-driver-gpu/upstream.env: 2b81f487848614f9b0167e48f2f8c65a057048f4c1e7b99b34a1ddc899c90ff0
-  010-nvidia-dra-driver-gpu/values.yaml: b5cc13fc6b12cb7f0931904f0c359a3c830a8dc16a2d54fe68eaa289339ce81c
+  010-nvidia-dra-driver-gpu/values.yaml: ba24921d21e6a64248d0bea9636b11d0232ca3d918b019aa30478a2520a7f0af
   011-nvsentinel/apply-crds.sh: a8c6ebf48c8b77370d9dcf5e07a7634f84f8e5b606932658a9b2edf116e6affa
   011-nvsentinel/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   011-nvsentinel/install.sh: 290c0907c263ac3c1a976be76da13528e36fe7f1db79945783b6ac7da4588857
@@ -3817,10 +3817,10 @@ h100-kind-training-slurm:
   017-slinky-topograph/values.yaml: c9015074818102d8727cfd38e96941c5c285175852fa71f81182c4323f751e05
   README.md: 5ea67d9b43752a8251ced4e0585f15e6f2eb0b05ea14b846d9b9a8c66e978c8f
   UPGRADING.md: 9444e3b2469985d89ae8fd6bb0ca9116e56c2904f9aff6929487211120b75484
-  bundle-info.yaml: 3fc28a106feb4c0d1370fe6b0d55ac9398ae04140ce059c9b516cf65c2adad8c
-  checksums.txt: c133154274926a6ec371d7e2cd74235aa8551f22af480b249242ccf9718d7204
+  bundle-info.yaml: 855c42d238b7ecd24e32d1803bb19afc134abc0adedbcc0a4623538067aa3c97
+  checksums.txt: f2f6d2d52f38647c49b061a2b96ec9a3e2506eff9cbc7decb68e30220e3b5888
   deploy.sh: cd7ccfe96441d0d0a17d9b7ef13f18e2938613e70854fc367a7bd8e64039019c
-  recipe.yaml: 1556bd952741a71f8d4e7e71c30ba56a2ca713f43d2b249f731c7045907110e6
+  recipe.yaml: 41a52cdcbcf7c952b6c5d503a00ec0fce06e6e9c89a5bbfaba33d31158b64f5d
 h200-any:
   001-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
