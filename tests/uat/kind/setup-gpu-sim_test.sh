@@ -289,6 +289,16 @@ check "the DCGM reference carries a digest" "digest" \
 check "the DCGM reference also carries a labeler-parseable tag" "parseable" \
     "$(grep -qE 'dcgm:[0-9]+\.' <<<"$ref" && echo parseable || echo "unparseable:${ref}")"
 
+# The host engine release tracks what the pinned gpu-operator chart renders, so
+# the lane gates NVSentinel against the engine real deployments run. The BOM is
+# regenerated from that chart on every pin bump (make bom-docs), so a chart
+# that moves its DCGM image fails here until the lane follows.
+bom="${SCRIPT_DIR}/../../../docs/user/container-images.md"
+check "the host engine release is the one gpu-operator ships" \
+    "$(sed -n '/^### gpu-operator$/,/^### /p' "${bom}" |
+        sed -nE 's|.*nvcr\.io/nvidia/cloud-native/dcgm:([^`@]+).*|\1|p')" \
+    "${DCGM_VERSION}"
+
 # 2. The pod label is the labeler's selector (--dcgm-app-label, default
 #    nvidia-dcgm). Rename it and the labeler sees no DCGM pod at all.
 check "the DaemonSet carries the app label the labeler selects on" "1" \
