@@ -76,6 +76,42 @@ daemonset_is_ready 0 1; check "ready exceeding desired is not ready" "1" "$?"
 daemonset_is_ready "" ""; check "empty fields are not ready" "1" "$?"
 daemonset_is_ready notanumber 1; check "a non-numeric field fails closed" "1" "$?"
 
+# --- connection evidence, and the Ready monitor that never connected -------
+#
+# At NVSentinel v1.25.0 the monitor's readiness probe is GET /metrics, which
+# answers as soon as its HTTP server starts, and the watch loop marks itself
+# alive before it tries DCGM and retries on failure. So a monitor that never
+# reaches a host engine is still Ready. What only a connected monitor emits is
+# the "dcgm gpu_id are [...]" line (dcgm_watcher/dcgm.py:1098), logged after it
+# has connected, built a group of every supported GPU DCGM discovered, and set
+# its health watches. Fixture lines follow the monitor's structlog JSON shape.
+log_line() { printf '{"event": "%s", "level": "%s", "module": "gpu-health-monitor"}\n' "$2" "$1"; }
+CONNECTED_LOG="$(
+    log_line info "Successfully created DCGM handle to nvidia-dcgm.gpu-operator.svc:5555"
+    log_line info "supported gpus are [0, 1, 2, 3, 4, 5, 6, 7]"
+    log_line info "dcgm gpu_id are [0, 1, 2, 3, 4, 5, 6, 7]"
+)"
+UNCONNECTED_LOG="$(
+    log_line info "DCGM probe watchdog enabled with a 30.0s deadline"
+    log_line error "Error creating DCGM handle: Unable to connect to any DCGM address"
+)"
+check "a connected monitor reports the GPUs it watches" "8" "$(monitor_gpu_count "${CONNECTED_LOG}")"
+out="$(monitor_gpu_count "${UNCONNECTED_LOG}")"; rc=$?
+check "a monitor that never connected reports no count" "" "${out}"
+check "and fails closed" "1" "${rc}"
+check "an empty GPU list counts zero" "0" \
+    "$(monitor_gpu_count "$(log_line info "dcgm gpu_id are []")")"
+# Discovery alone is not the evidence: the group and its health watches are
+# set up between "supported gpus are" and "dcgm gpu_id are", and either can
+# still fail and roll back.
+out="$(monitor_gpu_count "$(log_line info "supported gpus are [0, 1, 2, 3, 4, 5, 6, 7]")")"; rc=$?
+check "discovery without the monitoring group is not evidence" "1" "${rc}"
+# The monitor re-initialises after a connectivity failure, so the latest
+# initialisation is the one that describes it now.
+check "the latest initialisation wins" "0" \
+    "$(monitor_gpu_count "${CONNECTED_LOG}
+$(log_line info "dcgm gpu_id are []")")"
+
 # --- the live verdict: driving main ----------------------------------------
 #
 # The cases above call pure helpers. The reads happen in main, and a read is
@@ -88,6 +124,10 @@ daemonset_is_ready notanumber 1; check "a non-numeric field fails closed" "1" "$
 # Stub state is named stub_* because bash scopes dynamically: a stub closing
 # over a name main declares local (desired, ready, ...) would read main's value
 # instead of the fixture.
+#
+# The monitor pods and their logs are global stub_* settings rather than more
+# positional arguments, because every earlier case wants the same healthy
+# default: one connected monitor per worker. A case changes one and resets it.
 CLUSTER="testcluster"
 MONITOR="gpu-health-monitor-dcgm-4.x"
 SIBLING="gpu-health-monitor-dcgm-3.x"
@@ -95,6 +135,18 @@ ALL_WORKERS="node/testcluster-worker
 node/testcluster-worker2
 node/testcluster-worker3
 node/testcluster-worker4"
+ALL_MONITOR_PODS="testcluster-worker ${MONITOR}-a
+testcluster-worker2 ${MONITOR}-b
+testcluster-worker3 ${MONITOR}-c
+testcluster-worker4 ${MONITOR}-d"
+stub_defaults() {
+    stub_monitor_pods="${ALL_MONITOR_PODS}"
+    stub_monitor_log="${CONNECTED_LOG}"
+    stub_odd_pod="" stub_odd_log=""
+    stub_logs_rc=0
+    stub_unconnected_log_reads=0
+}
+stub_defaults
 
 # main_with <labelled-nodes> <desired> <ready> <sibling-desired> [<sibling-rc>]
 #           [<unlabelled-reads>]
@@ -106,8 +158,9 @@ node/testcluster-worker4"
 main_with() {
     local stub_labelled="$1" stub_desired="$2" stub_ready="$3"
     local stub_sibling="$4" stub_sibling_rc="${5:-0}" stub_unlabelled_reads="${6:-0}"
-    local stub_reads_log stub_rc
+    local stub_reads_log stub_log_reads_log stub_rc
     stub_reads_log="$(mktemp)"
+    stub_log_reads_log="$(mktemp)"
     (
         kubectl() {
             case "$*" in
@@ -125,6 +178,20 @@ main_with() {
                     printf '%s' "${stub_sibling}"
                     return "${stub_sibling_rc}"
                     ;;
+                *" get pods "*"${MONITOR}"*) printf '%s\n' "${stub_monitor_pods}" ;;
+                *" logs "*" -c gpu-health-monitor"*)
+                    # The first <stub_unconnected_log_reads> reads see a
+                    # monitor that has not connected yet.
+                    echo read >>"${stub_log_reads_log}"
+                    if (($(wc -l <"${stub_log_reads_log}") <= stub_unconnected_log_reads)); then
+                        printf '%s\n' "${UNCONNECTED_LOG}"
+                    elif [[ -n "${stub_odd_pod}" && "$*" == *" ${stub_odd_pod} "* ]]; then
+                        printf '%s\n' "${stub_odd_log}"
+                    else
+                        printf '%s\n' "${stub_monitor_log}"
+                    fi
+                    return "${stub_logs_rc}"
+                    ;;
                 *)
                     echo "unstubbed kubectl call: $*" >&2
                     return 97
@@ -136,7 +203,7 @@ main_with() {
     )
     stub_rc=$?
     echo "label reads: $(wc -l <"${stub_reads_log}" | tr -d ' ')"
-    rm -f "${stub_reads_log}"
+    rm -f "${stub_reads_log}" "${stub_log_reads_log}"
     return "${stub_rc}"
 }
 
@@ -208,6 +275,48 @@ check "a monitor on one of four labelled workers fails the gate" "1" "${rc}"
 check "and reports the coverage it found" "1" \
     "$(grep -cxF "error: ${MONITOR} is not ready on all 4 worker(s) after 30s (desired=1 ready=1)" <<<"${out}")"
 
+# READY IS NOT CONNECTED. Every monitor pod Ready on every worker, and none of
+# them ever reached a host engine: `-b ALL` dropped, a Service mismatch, or
+# nv-hostengine failing on the mocked NVML all look like this. The gate must
+# fail here, by worker, rather than pass on numberReady.
+stub_monitor_log="${UNCONNECTED_LOG}"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a Ready monitor that never connected fails the gate" "1" "${rc}"
+check "and names every worker without connection evidence" "1" \
+    "$(grep -cxF "error: 4 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker (no 'dcgm gpu_id are' line) testcluster-worker2 (no 'dcgm gpu_id are' line) testcluster-worker3 (no 'dcgm gpu_id are' line) testcluster-worker4 (no 'dcgm gpu_id are' line)" <<<"${out}")"
+# One monitor connected to an engine that discovered fewer GPUs than the
+# worker advertises: the host engine and the device plugin disagree.
+stub_odd_pod="${MONITOR}-c" stub_odd_log="$(log_line info "dcgm gpu_id are [0, 1, 2]")"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor watching the wrong number of GPUs fails the gate" "1" "${rc}"
+check "and reports the count it saw on that worker" "1" \
+    "$(grep -cxF "error: 1 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker3 (3 GPU(s))" <<<"${out}")"
+# A worker whose monitor pod is missing from the listing has no evidence,
+# whatever the DaemonSet counts say.
+stub_monitor_pods="$(grep -v '^testcluster-worker4 ' <<<"${ALL_MONITOR_PODS}")"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a worker with no monitor pod fails the gate" "1" "${rc}"
+check "and is named as having no pod" "1" \
+    "$(grep -cxF "error: 1 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker4 (no monitor pod)" <<<"${out}")"
+# A failed log read is not evidence either way, so it cannot pass.
+stub_logs_rc=1
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "failed log reads fail the gate" "1" "${rc}"
+check "and say the logs could not be read" "1" \
+    "$(grep -cF "testcluster-worker (logs unreadable)" <<<"${out}")"
+# The monitor waits one poll interval before its first connect, so the line
+# can trail readiness. The gate polls for it inside the same budget.
+stub_unconnected_log_reads=4
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "connection evidence that appears on the next poll passes" "0" "${rc}"
+check "and is reported per worker" "1" \
+    "$(grep -cxF "all 4 monitor(s) connected to DCGM and watch 8 GPU(s) each" <<<"${out}")"
+
 # --- the lane must actually run this, and gate on it -----------------------
 #
 # A guard nobody runs is not a guard. The same reasoning topology-golden_test.sh
@@ -229,8 +338,9 @@ check "conformance is still gated on the topology step" "1" \
 # first kills the verifier before it prints which wait failed, and the run
 # shows a cancelled step instead of a cause. Past MONITOR_TIMEOUT the script
 # can still sleep one interval and finish the label read it then starts, make
-# the DaemonSet's two reads that a late label still earns, and make the sibling
-# read: four kubectl calls of up to KUBECTL_TIMEOUT each.
+# the DaemonSet's two reads that a late label still earns, list the monitor
+# pods, read one log per worker, and make the sibling read: five kubectl calls
+# plus one per worker, each of up to KUBECTL_TIMEOUT.
 step_timeout_minutes() {
     awk -v id="$1" '
         /^      - name:/ { in_step = 0 }
@@ -238,7 +348,7 @@ step_timeout_minutes() {
         in_step && /^        timeout-minutes:/ { print $2; exit }
     ' "${WORKFLOW}"
 }
-worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + 4 * ${KUBECTL_TIMEOUT%s}))
+worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + (5 + $(worker_indices | wc -l)) * ${KUBECTL_TIMEOUT%s}))
 step_minutes="$(step_timeout_minutes gpu_health)"
 check "the step timeout outlives the verifier's worst case of ${worst_case}s" "outlives" \
     "$([[ "${step_minutes}" =~ ^[0-9]+$ ]] && ((step_minutes * 60 > worst_case)) &&
