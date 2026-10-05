@@ -311,6 +311,13 @@ check "the Service is named nvidia-dcgm" "1" \
     "$(dcgm_manifest | awk '/^kind: Service$/,0' | grep -cE '^  name: nvidia-dcgm$' | tr -d ' ')"
 check "the Service exposes 5555" "1" \
     "$(dcgm_manifest | grep -cE '^      port: 5555$' | tr -d ' ')"
+# Each monitor reports the GPUs of whichever host engine answers under its own
+# node's name, so the Service must route to the engine on the caller's node.
+# Without the policy kube-proxy spreads connections across all four workers and
+# every monitor still comes up Ready. GPU Operator's own nvidia-dcgm Service
+# sets the same field (assets/state-dcgm/0500_service.yaml at v26.7.1).
+check "the Service routes only to the caller's node" "1" \
+    "$(dcgm_manifest | awk '/^kind: Service$/,0' | grep -cE '^  internalTrafficPolicy: Local$' | tr -d ' ')"
 
 # 5. The host engine image is ~2GB and is not side-loaded, so it cannot share
 #    the device plugin's 300s rollout budget. A wait that expires on a cold
