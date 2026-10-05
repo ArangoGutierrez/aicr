@@ -411,6 +411,10 @@ metadata:
   name: ${DCGM_NAME}
   namespace: ${DCGM_NAMESPACE}
 spec:
+  # A monitor reports the answering host engine's GPUs under its own node
+  # name, so it must reach the engine on its own node. GPU Operator's
+  # nvidia-dcgm Service sets the same policy.
+  internalTrafficPolicy: Local
   selector:
     app: ${DCGM_NAME}
   ports:
