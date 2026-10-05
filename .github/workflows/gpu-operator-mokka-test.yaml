@@ -129,21 +129,33 @@ jobs:
           set -euo pipefail
           # Node image: ghcr.io/nvidia/mokka-kind-node, pinned by digest.
           node_image=$(yq -r '.testing.mokka_kind_node_image' .settings.yaml)
+          # Chart and image install by digest; the versions only label them.
           chart=$(yq -r '.testing.component_test.nvml_mock_chart' .settings.yaml)
           chart_version=$(yq -r '.testing.component_test.nvml_mock_chart_version' .settings.yaml)
+          chart_digest=$(yq -r '.testing.component_test.nvml_mock_chart_digest' .settings.yaml)
           # The chart's image.tag defaults to a floating `latest`, so the image
           # is pinned separately or the lane's cluster changes under it.
+          image=$(yq -r '.testing.component_test.nvml_mock_image' .settings.yaml)
           image_version=$(yq -r '.testing.component_test.nvml_mock_version' .settings.yaml)
-          for v in node_image chart chart_version image_version; do
+          image_digest=$(yq -r '.testing.component_test.nvml_mock_image_digest' .settings.yaml)
+          for v in node_image chart chart_version chart_digest image image_version image_digest; do
             if [ -z "${!v}" ] || [ "${!v}" = "null" ]; then
               echo "::error::.settings.yaml is missing $v" && exit 1
+            fi
+          done
+          for v in chart_digest image_digest; do
+            if ! [[ "${!v}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::.settings.yaml $v is not a sha256 digest: ${!v}" && exit 1
             fi
           done
           {
             echo "node_image=$node_image"
             echo "chart=$chart"
             echo "chart_version=$chart_version"
+            echo "chart_digest=$chart_digest"
+            echo "image=$image"
             echo "image_version=$image_version"
+            echo "image_digest=$image_digest"
           } >> "$GITHUB_OUTPUT"
 
       - name: Build aicr
@@ -185,12 +197,19 @@ jobs:
           # value points the DRA driver's altProcDevices at the proc-devices
           # file it stages, a hostPath of type File, so without it the kubelet
           # plugin stays in Init on a failed mount.
-          helm install nvml-mock "oci://${{ steps.mokka.outputs.chart }}" \
-            --version "${{ steps.mokka.outputs.chart_version }}" \
+          #
+          # The chart is pulled by digest with no --version: helm would
+          # re-resolve the tag and fail the lane on an upstream re-tag. The
+          # chart renders the image as "<repository>:<tag>", so a tag of
+          # "<version>@<digest>" yields a reference the runtime pulls by digest.
+          echo "nvml-mock chart ${{ steps.mokka.outputs.chart_version }} (${{ steps.mokka.outputs.chart_digest }})," \
+            "image ${{ steps.mokka.outputs.image }}:${{ steps.mokka.outputs.image_version }}@${{ steps.mokka.outputs.image_digest }}"
+          helm install nvml-mock "oci://${{ steps.mokka.outputs.chart }}@${{ steps.mokka.outputs.chart_digest }}" \
             --namespace mokka --create-namespace \
             --set gpu.profile="$GPU_PROFILE" \
             --set gpu.count="$GPU_COUNT" \
-            --set image.tag="${{ steps.mokka.outputs.image_version }}" \
+            --set image.repository="${{ steps.mokka.outputs.image }}" \
+            --set image.tag="${{ steps.mokka.outputs.image_version }}@${{ steps.mokka.outputs.image_digest }}" \
             --set imex.mockChannels.enabled=true \
             --wait --timeout 300s
           kubectl rollout status daemonset/nvml-mock -n mokka --timeout=300s

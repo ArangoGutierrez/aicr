@@ -338,7 +338,19 @@ testing:
     # unnecessary and should be removed rather than repointed.
     nvml_mock_chart: 'ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock'
     nvml_mock_chart_version: '0.4.0-rc2'
+    # The chart and the image are installed by DIGEST; the two version keys
+    # are the human labels for the release each digest came from and resolve
+    # nothing while a digest is set. Upstream has re-pushed a chart version
+    # tag under a new digest before (0.3.0, recorded in
+    # tests/uat/kind/setup-gpu-sim.sh), so a tag alone would let the lane's
+    # cluster change with no diff here. The image digest is the multi-arch OCI
+    # image INDEX (linux/amd64 and linux/arm64), valid on CI runners and arm64
+    # developer machines alike. To re-resolve after a pin bump:
+    #   helm show chart oci://<nvml_mock_chart> --version <v>   (the Digest: line)
+    #   regctl manifest digest <nvml_mock_image>:<v>            (the index digest)
+    nvml_mock_chart_digest: 'sha256:341389c379afea8dfe53e7af46ad8199a6588d3629d2005985ccbdcde35511ce'
     nvml_mock_image: 'ghcr.io/nvidia/nvml-mock'
+    nvml_mock_image_digest: 'sha256:95457da0db0718cbbc6bf6b02e14dbc9b88f9d1eba5b85562bcaeccff2a98d34'
     # The chart's image.tag defaults to the FLOATING `latest`, so pinning the
     # chart alone does not pin what runs. Measured 2026-09-22: `latest` was
     # rebuilt mid-session (sha256:00c8e31a -> sha256:9bfbbb69) and the new

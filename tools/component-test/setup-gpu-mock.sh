@@ -35,6 +35,21 @@ has_tools kubectl yq
 
 SETTINGS="${REPO_ROOT}/.settings.yaml"
 
+# The pinned digests identify the pinned versions only. Overriding a version
+# drops its digest unless one is passed too, because the pinned digest would
+# otherwise win and silently replace the requested tag. A repository override
+# keeps the image digest: a mirror serves the same digest, and one that does
+# not fails the pull instead of running something else. Set a digest variable
+# to the empty string to pull by tag.
+if [[ -z "${NVML_MOCK_IMAGE_DIGEST+set}" && -z "${NVML_MOCK_VERSION+set}" ]]; then
+    NVML_MOCK_IMAGE_DIGEST=$(yq -r '.testing.component_test.nvml_mock_image_digest // ""' "$SETTINGS" 2>/dev/null)
+fi
+if [[ -z "${NVML_MOCK_CHART_DIGEST+set}" && -z "${NVML_MOCK_CHART_VERSION+set}" ]]; then
+    NVML_MOCK_CHART_DIGEST=$(yq -r '.testing.component_test.nvml_mock_chart_digest // ""' "$SETTINGS" 2>/dev/null)
+fi
+NVML_MOCK_IMAGE_DIGEST="${NVML_MOCK_IMAGE_DIGEST:-}"
+NVML_MOCK_CHART_DIGEST="${NVML_MOCK_CHART_DIGEST:-}"
+
 NVML_MOCK_VERSION="${NVML_MOCK_VERSION:-$(yq -r '.testing.component_test.nvml_mock_version // "v0.1.0"' "$SETTINGS" 2>/dev/null)}"
 NVML_MOCK_IMAGE="${NVML_MOCK_IMAGE:-$(yq -r '.testing.component_test.nvml_mock_image // "ghcr.io/nvidia/nvml-mock"' "$SETTINGS" 2>/dev/null)}"
 NVML_MOCK_CHART="${NVML_MOCK_CHART:-$(yq -r '.testing.component_test.nvml_mock_chart // "ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock"' "$SETTINGS" 2>/dev/null)}"
@@ -43,6 +58,11 @@ GPU_PROFILE="${GPU_PROFILE:-$(yq -r '.testing.component_test.default_gpu_profile
 GPU_COUNT="${GPU_COUNT:-$(yq -r '.testing.component_test.default_gpu_count // 8' "$SETTINGS" 2>/dev/null)}"
 MOCK_READY_TIMEOUT="${MOCK_READY_TIMEOUT:-300s}"
 MANIFEST_FILE="${SCRIPT_DIR}/manifests/nvml-mock.yaml"
+
+# The chart renders its image as "<repository>:<tag>" with no digest field, so
+# the digest rides on the tag: "<version>@<digest>" is a reference the runtime
+# pulls by digest, and the version stays readable in the pod spec.
+NVML_MOCK_IMAGE_TAG="${NVML_MOCK_VERSION}${NVML_MOCK_IMAGE_DIGEST:+@${NVML_MOCK_IMAGE_DIGEST}}"
 
 # Map GPU profile to driver version (matches nvml-mock Helm chart defaults)
 profile_to_driver_version() {
@@ -55,7 +75,7 @@ profile_to_driver_version() {
 DRIVER_VERSION="${DRIVER_VERSION:-$(profile_to_driver_version "$GPU_PROFILE")}"
 
 log_info "Setting up GPU mock: profile=${GPU_PROFILE}, count=${GPU_COUNT}, driver=${DRIVER_VERSION}"
-log_info "Image: ${NVML_MOCK_IMAGE}:${NVML_MOCK_VERSION}"
+log_info "Image: ${NVML_MOCK_IMAGE}:${NVML_MOCK_IMAGE_TAG}"
 
 # Verify the mock staged what its consumers actually read.
 #
@@ -134,18 +154,26 @@ deploy_via_helm() {
     # the chart's default is the floating `latest`, so pinning only the chart
     # leaves what actually runs unpinned. The repository is forced too, or a
     # mirror set through NVML_MOCK_IMAGE is logged here and never pulled.
+    # A digest-pinned chart gets no --version: helm would re-resolve the tag
+    # and fail on an upstream re-tag of a chart the digest already pins.
     local chart_ref="oci://${NVML_MOCK_CHART}"
+    local -a version_args=()
+    if [[ -n "$NVML_MOCK_CHART_DIGEST" ]]; then
+        chart_ref+="@${NVML_MOCK_CHART_DIGEST}"
+    else
+        version_args=(--version "$NVML_MOCK_CHART_VERSION")
+    fi
     log_info "Attempting Helm install from: ${chart_ref} (version ${NVML_MOCK_CHART_VERSION})"
 
     local helm_err
     helm_err=$(mktemp)
     if helm install nvml-mock "$chart_ref" \
-        --version "$NVML_MOCK_CHART_VERSION" \
+        ${version_args[@]+"${version_args[@]}"} \
         --namespace nvml-mock --create-namespace \
         --set gpu.profile="$GPU_PROFILE" \
         --set gpu.count="$GPU_COUNT" \
         --set image.repository="$NVML_MOCK_IMAGE" \
-        --set image.tag="$NVML_MOCK_VERSION" \
+        --set image.tag="$NVML_MOCK_IMAGE_TAG" \
         --wait --timeout "$MOCK_READY_TIMEOUT" 2>"$helm_err"; then
         rm -f "$helm_err"
         return 0
@@ -172,11 +200,17 @@ deploy_via_manifest() {
     # Deploying it for another profile would advertise GPUs nobody asked for,
     # and deploying it past a chart bump would stage a tree the verifier and
     # the pinned image no longer agree on, so either mismatch stops here.
-    local manifest_chart manifest_profile
+    local manifest_chart manifest_digest manifest_profile
     manifest_chart=$(sed -n 's/^# nvml-mock-chart-version: //p' "$MANIFEST_FILE")
+    manifest_digest=$(sed -n 's/^# nvml-mock-chart-digest: //p' "$MANIFEST_FILE")
     manifest_profile=$(sed -n 's/^# nvml-mock-profile: //p' "$MANIFEST_FILE")
     if [[ "$manifest_chart" != "$NVML_MOCK_CHART_VERSION" ]]; then
         log_error "Fallback manifest was rendered from nvml-mock chart ${manifest_chart:-<unknown>}, but ${NVML_MOCK_CHART_VERSION} is pinned."
+        log_error "Regenerate it as its header describes."
+        exit 1
+    fi
+    if [[ -n "$NVML_MOCK_CHART_DIGEST" && "$manifest_digest" != "$NVML_MOCK_CHART_DIGEST" ]]; then
+        log_error "Fallback manifest was rendered from nvml-mock chart digest ${manifest_digest:-<unknown>}, but ${NVML_MOCK_CHART_DIGEST} is pinned."
         log_error "Regenerate it as its header describes."
         exit 1
     fi
@@ -191,7 +225,7 @@ deploy_via_manifest() {
     # Substitute placeholders in manifest
     sed \
         -e "s|NVML_MOCK_IMAGE_PLACEHOLDER|${NVML_MOCK_IMAGE}|g" \
-        -e "s|NVML_MOCK_VERSION_PLACEHOLDER|${NVML_MOCK_VERSION}|g" \
+        -e "s|NVML_MOCK_VERSION_PLACEHOLDER|${NVML_MOCK_IMAGE_TAG}|g" \
         -e "s|GPU_COUNT_PLACEHOLDER|${GPU_COUNT}|g" \
         -e "s|DRIVER_VERSION_PLACEHOLDER|${DRIVER_VERSION}|g" \
         "$MANIFEST_FILE" | kubectl apply -n nvml-mock -f -
