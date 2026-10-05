@@ -331,11 +331,12 @@ check "the Service exposes 5555" "1" \
 check "the Service routes only to the caller's node" "Local" \
     "$(dcgm_manifest | yq -r 'select(.kind == "Service") | .spec.internalTrafficPolicy')"
 
-# 5. The host engine image is ~2GB and is not side-loaded, so it cannot share
-#    the device plugin's 300s rollout budget. A wait that expires on a cold
-#    pull fails the lane for being slow rather than wrong, and the usual repair
-#    is to widen it until it no longer discriminates. Require a dedicated, and
-#    strictly larger, budget so a later tidy-up cannot collapse the two.
+# 5. The host engine image is a 1.9GB download and is not side-loaded, so it
+#    cannot share the device plugin's 300s rollout budget. A wait that expires
+#    on a cold pull fails the lane for being slow rather than wrong, and the
+#    usual repair is to widen it until it no longer discriminates. Require a
+#    dedicated, and strictly larger, budget so a later tidy-up cannot collapse
+#    the two.
 check "the host engine has its own rollout budget" "own" \
     "$([[ "${DCGM_ROLLOUT_TIMEOUT}" != "${ROLLOUT_TIMEOUT}" ]] && echo own || echo "shared:${DCGM_ROLLOUT_TIMEOUT}")"
 check "the host engine budget exceeds the shared one" "larger" \
