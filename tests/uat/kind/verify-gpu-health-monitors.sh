@@ -18,11 +18,12 @@
 # driver.
 #
 # WHY THIS IS NOT IN THE RECIPE'S HEALTH CHECK. recipes/checks/nvsentinel
-# asserts these DaemonSets tolerantly, because desiredNumberScheduled is
-# legitimately 0 on any lane that supplies no DCGM host engine. The upstream
+# omits these DaemonSets: it excludes the 3.x one by name and never lists the
+# 4.x one, because both legitimately sit at desiredNumberScheduled 0 on any
+# lane that supplies no DCGM host engine. The upstream
 # gpu-operator chart ships its standalone host engine off (dcgm.enabled: false);
 # AICR's values turn it on (recipes/components/gpu-operator/values.yaml:46-47)
-# and recipes/overlays/kind.yaml turns it off again. Tightening the
+# and recipes/overlays/kind.yaml turns it off again. Asserting them in the
 # shared check would fail those lanes for being correctly configured. This lane
 # SUPPLIES the host engine, so it can demand that the monitor is Ready and
 # connected to it. Same split, and the same reason, as verify-topology.sh.

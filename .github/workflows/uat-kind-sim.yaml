@@ -363,9 +363,10 @@ jobs:
 
       # Gates the other half of what the simulated GPUs buy: NVSentinel's GPU
       # health monitor running and reporting with no GPU hardware. It is a lane
-      # step rather than a recipe health check because the shared check has to
-      # stay tolerant of desiredNumberScheduled 0, which is correct on every
-      # lane that supplies no DCGM host engine. See the script's header.
+      # step rather than a recipe health check because the shared check omits
+      # the monitor DaemonSets, which legitimately sit at
+      # desiredNumberScheduled 0 on every lane that supplies no DCGM host
+      # engine. See the script's header.
       #
       # After topology, so a failure here is attributable to the DCGM hop alone
       # and not confused with a Topograph problem; before conformance, so the
