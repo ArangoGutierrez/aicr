@@ -39,7 +39,9 @@
 #     --set gpu.count=8 --set image.repository=NVML_MOCK_IMAGE_PLACEHOLDER \
 #     --set image.tag=NVML_MOCK_VERSION_PLACEHOLDER \
 #     --set driverVersion=DRIVER_VERSION_PLACEHOLDER
-# then set the GPU_COUNT env value to "GPU_COUNT_PLACEHOLDER" (the only line
+# then prepend the `Namespace nvml-mock` document below (helm template emits
+# none, and setup-gpu-mock.sh applies into nvml-mock without creating it),
+# set the GPU_COUNT env value to "GPU_COUNT_PLACEHOLDER" (the only line
 # gpu.count reaches), delete the helm.sh/chart and managed-by labels, the
 # integrations-fgo comment block and trailing whitespace, and update the
 # chart version and digest above.
