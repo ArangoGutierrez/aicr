@@ -143,7 +143,14 @@ if kubectl get daemonset nvml-mock -n nvml-mock &>/dev/null; then
         exit 0
     fi
     log_info "nvml-mock exists but not fully ready, redeploying..."
-    kubectl delete daemonset nvml-mock -n nvml-mock --ignore-not-found 2>/dev/null || true
+    # Deleting only the DaemonSet leaves a Helm release registered, and the
+    # `helm install` below then fails on the name and falls back to the
+    # single-profile manifest. Same order as cleanup.sh.
+    if command -v helm &>/dev/null && helm status nvml-mock -n nvml-mock &>/dev/null; then
+        helm uninstall nvml-mock -n nvml-mock --wait 2>/dev/null || true
+    else
+        kubectl delete daemonset nvml-mock -n nvml-mock --ignore-not-found 2>/dev/null || true
+    fi
 fi
 
 # Try Helm chart first (preferred when OCI chart is published)
