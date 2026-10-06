@@ -42,12 +42,16 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # two: its linux/amd64 manifest carries 2,699,785,123 bytes of compressed
 # layers (summed from `regctl manifest get` on 2026-10-06). 196MB of that is
 # layers it shares with the host engine image, already on the node, which
-# leaves 2.5GB. At the 2.7MB/s measured for the host engine pull (see
-# DCGM_ROLLOUT_TIMEOUT in setup-gpu-sim.sh) that is some 935s cold, so the
-# host engine's 900s would fail the lane for being slow rather than wrong.
-# 1200s keeps the margin the host engine's budget has over its own cold pull.
-# Measured on this hardware, a 905MB image took 338s cold, and the same image
-# took over 16 minutes while another large pull was in flight on the node.
+# leaves 2.5GB. At the 2.7MB/s that DCGM_ROLLOUT_TIMEOUT in setup-gpu-sim.sh
+# also assumes, that is some 935s cold, so the host engine's 900s would fail
+# the lane for being slow rather than wrong. 1200s keeps the margin the host
+# engine's budget has over its own cold pull.
+#
+# The 2.7MB/s is not a host engine pull. It is one measurement: a 905MB image
+# took 338s on a cold node in a local arm64 kind cluster with a single monitor
+# pod scheduled, and over 16 minutes while another large pull was in flight on
+# that node. Four workers pulling at once on one runner, as this lane does, is
+# unmeasured (no run of this lane yet).
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-1200}"
 MONITOR_INTERVAL=10
 # Long enough for the first health check after any init line a read has seen
