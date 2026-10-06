@@ -163,10 +163,17 @@ spec:
       dependencyRefs:
         - network-operator
 
+    # nfd-worker labels the InfiniBand VFs (pci-15b3.present) that the
+    # NicClusterPolicy and the nvidia-peermem reloader select on; see the
+    # values file.
+    - name: nfd
+      type: Helm
+      valuesFile: components/nfd/values-nvidia-nics-aks.yaml
+
     # NVIDIA Network Operator for InfiniBand RDMA on AKS ND-series.
     # Manifests deliver the full RDMA stack that the Helm chart does not template:
     #   - NicClusterPolicy: MOFED driver, RDMA shared device plugin, DOCA telemetry
-    #   - NFD NodeFeatureRule: labels IB-capable nodes (pci-15b3.present=true)
+    #   (IB-capable nodes are labeled pci-15b3.present by the nfd ref above)
     #   - nvidia-peermem reloader: loads nvidia-peermem for GPUDirect RDMA —
     #     required under the AKS azure-managed default, where no GPU Operator
     #     driver DaemonSet exists to load it and the Azure-managed driver
@@ -186,7 +193,6 @@ spec:
       source: https://helm.ngc.nvidia.com/nvidia
       valuesFile: components/network-operator/values-aks.yaml
       manifestFiles:
-        - components/network-operator/manifests/nfd-network-rule.yaml
         - components/network-operator/manifests/nic-cluster-policy-aks.yaml
         - components/network-operator/manifests/nvidia-peermem-reloader.yaml
       dependencyRefs:

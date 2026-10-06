@@ -113,7 +113,6 @@ componentRefs:
       - nfd
       - cert-manager
     manifestFiles:
-      - components/network-operator/manifests/nfd-network-rule.yaml
       - components/network-operator/manifests/nic-cluster-policy-aks.yaml
       - components/network-operator/manifests/nvidia-peermem-reloader.yaml
   - name: nfd
@@ -122,7 +121,7 @@ componentRefs:
     type: Helm
     source: https://kubernetes-sigs.github.io/node-feature-discovery/charts
     version: 0.19.0
-    valuesFile: components/nfd/values.yaml
+    valuesFile: components/nfd/values-nvidia-nics-aks.yaml
     overrides:
       topologyUpdater:
         enable: true
