@@ -308,8 +308,9 @@ after gpu-operator deploys (and where the operator's driver pod loads
 `nvidia-peermem` itself, making the reloader a harmless no-op). It targets
 IB-capable nodes (the same `pci-15b3.present` label as the
 NicClusterPolicy, set by the nfd-worker rule in
-`components/nfd/values-nvidia-nics-aks.yaml`) and is removed together with
-the RDMA stack by the documented opt-out (`--set networkoperator:enabled=false
+`components/nfd/values-nvidia-nics-aks.yaml` and, for one release, by the
+`nfd-network-rule` manifest) and is removed together with the RDMA stack by
+the documented opt-out (`--set networkoperator:enabled=false
 --set-json 'nfd:worker.config.sources.custom=[]'`; the second flag stops
 nfd-worker labeling nodes for a network-operator that is not installed). See
 [Azure's GPU driver guidance](https://azure.github.io/aks-rdma-infiniband/configurations/gpu-drivers).

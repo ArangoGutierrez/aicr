@@ -118,16 +118,16 @@ See the upstream [Topology Updater docs](https://kubernetes-sigs.github.io/node-
 
 ### NFD Feature Publishing
 
-nfd-worker publishes node labels, not raw hardware features. Every recipe sets `worker.config.core.noPublishFeatures` (`recipes/components/nfd/values.yaml`), so each node's `NodeFeature` object carries its labels and only the `kernel.loadedmodule` feature. Workers still discover every feature and compute every label, including their own `sources.custom` rules, from the full set: node labels do not change.
+nfd-worker publishes node labels, not raw hardware features. Every recipe that deploys the `nfd` component (all but the OpenShift recipes, which deploy `nfd-ocp`) sets `worker.config.core.noPublishFeatures` (`recipes/components/nfd/values.yaml`), so each node's `NodeFeature` object carries its labels and only the `kernel.loadedmodule` feature. Workers still discover every feature and compute every label, including their own `sources.custom` rules, from the full set: node labels do not change.
 
 nfd-master caches one `NodeFeature` per node. With raw features published, each object was about 334 KB on GB300 nodes, mostly the kernel config, and nfd-master ran out of memory on a 1720-node cluster. On a kind node the published spec drops from 64,709 bytes to 2,979 bytes; `kernel.config` and `kernel.enabledmodule` alone were 82% of it.
 
-The trade-off is that cluster-side `NodeFeatureRule` and `NodeFeatureGroup` objects can only match `kernel.loadedmodule`. AICR's own rules run in nfd-worker instead: recipes that ship network-operator add an nfd-worker rule (`components/nfd/values-nvidia-nics.yaml`, or `values-nvidia-nics-aks.yaml` on AKS) that labels NVIDIA networking nodes `feature.node.kubernetes.io/pci-15b3.present=true`, and network-operator's own rule is turned off.
+The trade-off is that cluster-side `NodeFeatureRule` and `NodeFeatureGroup` objects can only match `kernel.loadedmodule`. AICR's own rules run in nfd-worker instead: recipes that ship network-operator add an nfd-worker rule (`components/nfd/values-nvidia-nics.yaml`, or `values-nvidia-nics-aks.yaml` on AKS) that labels NVIDIA networking nodes `feature.node.kubernetes.io/pci-15b3.present=true`. network-operator's own rule (on AKS, AICR's `nfd-network-rule` manifest instead) stays for one release so the label is never missing during an upgrade. Once a node's worker stops publishing `pci.*`, those rules match nothing on that node, and a later release removes them.
 
 - **Your own NodeFeatureRules:** publish the features they read again, for example `--set-json 'nfd:worker.config.core.noPublishFeatures=["kernel.config","kernel.enabledmodule"]'` keeps everything except the two largest keys.
 - **Your own nfd-worker rules:** `worker.config.sources.custom` is a list, and a list override replaces it. Include the NIC rule from the values file above when you set it on a recipe that ships network-operator.
 - **k8s-nim-operator `nfd.nodeFeatureRules.deviceID`:** reads `pci.device`, so it labels nothing unless `pci.*` is published again.
-- **Upgrading a running cluster:** the label is handed from network-operator's rule to nfd-worker without being removed. On AKS, the former `nfd-network-rule` NodeFeatureRule was a Helm hook object and stays behind; it matches nothing, and `kubectl delete nodefeaturerule nfd-network-rule` removes it.
+- **Upgrading a running cluster:** the label stays on every node during the upgrade, whatever order the deployer applies components in, because this release keeps the cluster-side rules. Until a node's nfd-worker restarts, the old rule labels the node; the worker's first write after the restart drops `pci.device` and adds the label in the same update.
 
 ### GPU Operator Driver Auto-Detect
 

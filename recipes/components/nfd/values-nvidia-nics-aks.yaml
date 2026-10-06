@@ -18,7 +18,9 @@
 # that Azure accelerated networking attaches, which is the broader match the
 # AKS recipe has always avoided.
 #
-# Port of the former components/network-operator/manifests/nfd-network-rule.yaml.
+# Port of components/network-operator/manifests/nfd-network-rule.yaml,
+# which stays for one release and matches nothing once the node's worker
+# strips pci.*.
 # Reference: https://github.com/Azure/aks-rdma-infiniband/blob/main/tests/setup-infra/network-operator-nfd.yaml
 worker:
   config:
