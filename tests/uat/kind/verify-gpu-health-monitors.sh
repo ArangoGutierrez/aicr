@@ -48,10 +48,10 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # engine's budget has over its own cold pull.
 #
 # The 2.7MB/s is not a host engine pull. It is one measurement: a 905MB image
-# took 338s on a cold node in a local arm64 kind cluster with a single monitor
-# pod scheduled, and over 16 minutes while another large pull was in flight on
-# that node. Four workers pulling at once on one runner, as this lane does, is
-# unmeasured (no run of this lane yet).
+# took 338s on a cold node in a two-node local arm64 kind cluster, and over 16
+# minutes while another large pull was in flight on that node. Four workers
+# pulling at once on one runner, as this lane does, is unmeasured (no run of
+# this lane yet).
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-1200}"
 MONITOR_INTERVAL=10
 # Long enough for the first health check after any init line a read has seen
