@@ -43,8 +43,19 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # 16 minutes while another large pull was in flight on the node.
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-900}"
 MONITOR_INTERVAL=10
+# Two of the chart's 15s pollIntervalSeconds (gpu-health-monitor values.yaml:46
+# at v1.25.0; AICR does not override it). The monitor health-checks one poll
+# after it initialises, so two polls put a health check after any init line a
+# read has seen.
+MONITOR_CONFIRM_WAIT=30
 # The chart names the monitor container after itself.
 MONITOR_CONTAINER="gpu-health-monitor"
+MONITOR_INIT_PATTERN='dcgm gpu_id are \[[0-9, ]*\]'
+# What the monitor logs at v1.25.0 when it loses DCGM, all in
+# gpu_health_monitor/dcgm_watcher/dcgm.py: a hung probe (:195), a failed or
+# timed-out health check (:735, :740, :1259), a failed connect (:1064), and a
+# failed or rolled-back initialisation (:1142, :1246).
+DCGM_FAILURE_PATTERN='treating the DCGM probe as unresponsive|Indicating connectivity failure|DCGM connectivity failure detected|Error creating DCGM handle|DCGM monitoring initialization failed|Error getting DCGM handle'
 
 # --- pure -------------------------------------------------------------------
 
@@ -124,6 +135,34 @@ monitor_gpu_count() {
     printf '%s' "${count}"
 }
 
+# monitor_failed_after_init <log>
+#
+# Succeeds when a DCGM failure line follows the latest init line. The init
+# line is logged before the first health check, so a monitor that connected
+# and then lost its host engine keeps that line and shows the loss only after
+# it. Failures before it are a monitor that started before its host engine.
+monitor_failed_after_init() {
+    INIT="${MONITOR_INIT_PATTERN}" FAILURE="${DCGM_FAILURE_PATTERN}" awk '
+        $0 ~ ENVIRON["INIT"] { failed = 0; next }
+        $0 ~ ENVIRON["FAILURE"] { failed = 1 }
+        END { exit !failed }
+    ' <<<"$1"
+}
+
+# monitor_changes <before> <after>
+#
+# Names each monitor in <after> that is not the one <before> read: another
+# pod, a restarted container, or a new DCGM initialisation. Both are lists of
+# monitor_evidence "ok" lines.
+monitor_changes() {
+    awk '
+        NR == FNR { pod[$2] = $3; restarts[$2] = $4; inits[$2] = $5; next }
+        $3 != pod[$2] { print $2 " (pod replaced between reads)"; next }
+        $4 != restarts[$2] { print $2 " (restarted between reads)"; next }
+        $5 != inits[$2] { print $2 " (re-initialised DCGM between reads)" }
+    ' <(printf '%s\n' "$1") <(printf '%s\n' "$2")
+}
+
 # worker_nodes <cluster>
 #
 # The workers setup-gpu-sim.sh runs a host engine on, one name per line, which
@@ -153,13 +192,55 @@ unlabelled_workers() {
 
 # monitor_pods <context> <daemonset>
 #
-# Prints "<node> <pod>" for each pod <daemonset> owns, one per line.
+# Prints "<node> <pod> <restartCount> <ready>" for each pod <daemonset> owns,
+# one per line, the last two for the monitor container. A pod with no
+# container status yet prints neither, which reads as not ready.
 monitor_pods() {
     local context="$1" ds="$2"
+    local status=".status.containerStatuses[?(@.name==\"${MONITOR_CONTAINER}\")]"
     kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
         get pods -n "${NVSENTINEL_NAMESPACE}" \
-        -o "jsonpath={range .items[?(@.metadata.ownerReferences[0].name==\"${ds}\")]}{.spec.nodeName}{\" \"}{.metadata.name}{\"\\n\"}{end}" \
+        -o "jsonpath={range .items[?(@.metadata.ownerReferences[0].name==\"${ds}\")]}{.spec.nodeName}{\" \"}{.metadata.name}{\" \"}{${status}.restartCount}{\" \"}{${status}.ready}{\"\\n\"}{end}" \
         2>/dev/null
+}
+
+# monitor_evidence <context> <daemonset> <workers>
+#
+# Reads each worker's monitor once. Prints "ok <node> <pod> <restarts> <inits>"
+# for a Ready monitor whose latest init line lists GPUS_PER_WORKER GPUs with no
+# DCGM failure after it, and "fail <node> (<reason>)" for any other.
+monitor_evidence() {
+    local context="$1" ds="$2" workers="$3"
+    local pods node pod restarts ready logs count
+    pods="$(monitor_pods "${context}" "${ds}")"
+    while IFS= read -r node; do
+        [[ -n "${node}" ]] || continue
+        read -r pod restarts ready <<<"$(awk -v n="${node}" '$1 == n { print $2, $3, $4; exit }' <<<"${pods}")"
+        if [[ -z "${pod}" ]]; then
+            echo "fail ${node} (no monitor pod)"
+            continue
+        fi
+        # kubectl logs serves a crash-looping container's last terminated
+        # instance, whose log can end on a clean init.
+        if [[ "${ready}" != "true" ]]; then
+            echo "fail ${node} (monitor container not ready)"
+            continue
+        fi
+        if ! logs="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
+            logs -n "${NVSENTINEL_NAMESPACE}" "${pod}" -c "${MONITOR_CONTAINER}" 2>/dev/null)"; then
+            echo "fail ${node} (logs unreadable)"
+            continue
+        fi
+        if ! count="$(monitor_gpu_count "${logs}")"; then
+            echo "fail ${node} (no 'dcgm gpu_id are' line)"
+        elif [[ "${count}" != "${GPUS_PER_WORKER}" ]]; then
+            echo "fail ${node} (${count} GPU(s))"
+        elif monitor_failed_after_init "${logs}"; then
+            echo "fail ${node} (DCGM failure after its latest 'dcgm gpu_id are' line)"
+        else
+            echo "ok ${node} ${pod} ${restarts} $(grep -cE "${MONITOR_INIT_PATTERN}" <<<"${logs}")"
+        fi
+    done <<<"${workers}"
 }
 
 ds_field() {
@@ -173,7 +254,7 @@ main() {
     local cluster="${1:-${DEFAULT_CLUSTER_NAME}}"
     local context="kind-${cluster}" version ds sibling desired ready
     local workers expected labelled missing deadline
-    local pods node pod logs count problems
+    local evidence baseline problems
 
     version="$(expected_dcgm_major "$(dcgm_image_ref)")" || return 1
     ds="$(monitor_daemonset "${version}")" || return 1
@@ -224,37 +305,33 @@ main() {
     echo "${ds} is ready (desired=${desired} ready=${ready})"
 
     # Ready is not connected, so every worker's monitor must also show that it
-    # reached a host engine and is watching that worker's GPUs. The monitor
-    # waits one poll interval before its first connect, so the evidence can
-    # trail readiness and is polled for in the same budget.
+    # reached a host engine, is watching that worker's GPUs, and has not lost
+    # the engine since. The monitor waits one poll interval before its first
+    # connect, so the evidence can trail readiness and is polled for in the
+    # same budget. A clean read is only a sample: it can fall between an init
+    # and the health check that fails. So it is read again MONITOR_CONFIRM_WAIT
+    # later and must show the same pods, with no restart and no new init.
+    baseline=""
     while :; do
-        problems=""
-        pods="$(monitor_pods "${context}" "${ds}")"
-        while IFS= read -r node; do
-            [[ -n "${node}" ]] || continue
-            pod="$(awk -v n="${node}" '$1 == n { print $2; exit }' <<<"${pods}")"
-            if [[ -z "${pod}" ]]; then
-                problems+="${node} (no monitor pod)"$'\n'
-                continue
-            fi
-            if ! logs="$(kubectl --context "${context}" --request-timeout="${KUBECTL_TIMEOUT}" \
-                logs -n "${NVSENTINEL_NAMESPACE}" "${pod}" -c "${MONITOR_CONTAINER}" 2>/dev/null)"; then
-                problems+="${node} (logs unreadable)"$'\n'
-                continue
-            fi
-            if ! count="$(monitor_gpu_count "${logs}")"; then
-                problems+="${node} (no 'dcgm gpu_id are' line)"$'\n'
-            elif [[ "${count}" != "${GPUS_PER_WORKER}" ]]; then
-                problems+="${node} (${count} GPU(s))"$'\n'
-            fi
-        done <<<"${workers}"
-        [[ -z "${problems}" ]] && break
+        evidence="$(monitor_evidence "${context}" "${ds}" "${workers}")"
+        problems="$(sed -n 's/^fail //p' <<<"${evidence}")"
+        if [[ -z "${problems}" && -n "${baseline}" ]]; then
+            problems="$(monitor_changes "${baseline}" "${evidence}")"
+            [[ -z "${problems}" ]] && break
+        fi
+        if [[ -z "${problems}" ]]; then
+            baseline="${evidence}"
+            echo "all ${expected} monitor(s) show a DCGM connection; reading them again in ${MONITOR_CONFIRM_WAIT}s"
+            sleep "${MONITOR_CONFIRM_WAIT}"
+            continue
+        fi
+        baseline=""
         if ((SECONDS >= deadline)); then
             echo "error: $(grep -c . <<<"${problems}") of ${expected} monitor(s) show no DCGM connection" \
                 "with ${GPUS_PER_WORKER} GPU(s) after ${MONITOR_TIMEOUT}s:" \
                 "$(grep . <<<"${problems}" | paste -sd ' ' -)" >&2
-            echo "       a connected monitor logs 'dcgm gpu_id are [...]'; read that worker's monitor log" >&2
-            echo "       and check the host engine on the same node." >&2
+            echo "       a connected monitor logs 'dcgm gpu_id are [...]' and no DCGM failure after it;" >&2
+            echo "       read that worker's monitor log and check the host engine on the same node." >&2
             return 1
         fi
         sleep "${MONITOR_INTERVAL}"
