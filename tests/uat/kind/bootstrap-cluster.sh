@@ -25,8 +25,9 @@
 # tests/uat/ runs a `kind create cluster` whose --name or --config names this
 # cluster or slurm-cluster-config.yaml, directly, through a variable or
 # ${{ env.VAR }} the same file assigns, or through a workflow expression the
-# file cannot resolve. A lane that creates a cluster of its own topology and
-# name is not a copy of this one and is not flagged.
+# file cannot resolve; a variable assigned such an expression counts too. A
+# lane that creates a cluster of its own topology and name is not a copy of
+# this one and is not flagged.
 #
 # Usage:
 #   tests/uat/kind/bootstrap-cluster.sh [cluster-name]
