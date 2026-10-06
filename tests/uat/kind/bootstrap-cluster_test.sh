@@ -214,15 +214,16 @@ creates_slurm_cluster() {
     awk -v cfg='slurm-cluster-config' -v name="${DEFAULT_CLUSTER_NAME}" '
         function names_slurm(s) { return index(s, cfg) > 0 || index(s, name) > 0 }
         function assigns(line, ref) { return line ~ ("(^|[^A-Za-z0-9_])" ref "(=|:[[:space:]])") }
-        # True when line assigns ref a value whose first word holds a GitHub
-        # expression. Scoped to the value, so an unrelated expression on the
-        # same line (a one-line `VAR=x; kind create cluster --image ${{ ... }}`)
-        # does not count.
+        # True when line assigns ref a value holding a GitHub expression
+        # anywhere, `$(echo "${{ ... }}")` included. The value ends with its
+        # shell command (the first ; or &&), so an unrelated expression later
+        # on the same line (a one-line `VAR=x; kind create cluster --image
+        # ${{ ... }}`) does not count. Calls match(), so callers inside a
+        # match() loop must save RSTART and RLENGTH first.
         function assigns_expression(line, ref,    v) {
             if (!match(line, "(^|[^A-Za-z0-9_])" ref "(=|:[[:space:]])")) return 0
             v = substr(line, RSTART + RLENGTH)
-            sub(/^[[:space:]]+/, "", v)
-            sub(/[[:space:]].*$/, "", v)
+            sub(/(;|&&).*$/, "", v)
             return index(v, "${{") > 0
         }
         # Rewrites each GitHub expression in s: ${{ env.VAR }} becomes ${VAR}
@@ -257,16 +258,17 @@ creates_slurm_cluster() {
         # expand_expressions could not resolve. An expression-valued variable
         # is unresolvable from the file, so it fails closed like the
         # ${{ env.VAR }} spelling of the same chain.
-        function resolves_slurm(s,    rest, ref, i) {
+        function resolves_slurm(s,    rest, ref, nxt, i) {
             if (names_slurm(s) || index(s, "UNRESOLVED") > 0) return 1
             rest = s
             while (match(rest, /\$\{?[A-Za-z_][A-Za-z0-9_]*/)) {
                 ref = substr(rest, RSTART + 1, RLENGTH - 1)
+                nxt = RSTART + RLENGTH
                 sub(/^\{/, "", ref)
                 for (i = 1; i <= n; i++)
                     if (assigns(logical[i], ref) && (names_slurm(logical[i]) || assigns_expression(logical[i], ref)))
                         return 1
-                rest = substr(rest, RSTART + RLENGTH)
+                rest = substr(rest, nxt)
             }
             return 0
         }
@@ -353,6 +355,19 @@ printf '%s\n' 'env:' '  CLUSTER: ${{ inputs.cluster }}' \
 printf '%s\n' 'run: CLUSTER=${{ inputs.cluster }}; kind create cluster --name "$CLUSTER" --config /tmp/k.yaml' \
     > "${fixture}/workflows/unresolvable-shell-var.yaml"
 # shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'env:' '  CLUSTER:     ${{ inputs.cluster }}' \
+    'run: kind create cluster --name "$CLUSTER" --config /tmp/k.yaml' \
+    > "${fixture}/workflows/unresolvable-env-aligned.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'run: CLUSTER=$(echo "${{ inputs.cluster }}"); kind create cluster --name "$CLUSTER" --config /tmp/k.yaml' \
+    > "${fixture}/workflows/unresolvable-subst-var.yaml"
+# Two variables in one argument: the scan must reach the second after
+# resolving the first.
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'env:' '      KIND_DIR: /tmp/kind' '      CFG: slurm-cluster-config.yaml' \
+    'run: kind create cluster --name x --config "$KIND_DIR/$CFG"' \
+    > "${fixture}/workflows/inline-slurm-two-vars.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
 printf '%s\n' 'run: CLUSTER=aicr-mokka; kind create cluster --name "$CLUSTER" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
     > "${fixture}/workflows/independent-one-line.yaml"
 # shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
@@ -377,7 +392,9 @@ check "a copied bootstrap and an inlined slurm create are duplicates; other topo
         "${fixture}/workflows/inline-slurm.yaml" "${fixture}/workflows/inline-slurm-env.yaml" \
         "${fixture}/workflows/inline-slurm-expr.yaml" "${fixture}/workflows/unresolvable-expr.yaml" \
         "${fixture}/workflows/unresolvable-env.yaml" "${fixture}/workflows/unassigned-env.yaml" \
-        "${fixture}/workflows/unresolvable-env-var.yaml" "${fixture}/workflows/unresolvable-shell-var.yaml" | sort)" \
+        "${fixture}/workflows/unresolvable-env-var.yaml" "${fixture}/workflows/unresolvable-shell-var.yaml" \
+        "${fixture}/workflows/unresolvable-env-aligned.yaml" "${fixture}/workflows/unresolvable-subst-var.yaml" \
+        "${fixture}/workflows/inline-slurm-two-vars.yaml" | sort)" \
     "$(slurm_cluster_creators "${fixture}" | sort)"
 check "a lost slurm cluster name flags every creator rather than none" \
     "$(grep -rl 'kind create cluster' "${fixture}" | sort)" \
