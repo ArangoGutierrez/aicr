@@ -55,14 +55,29 @@ on:
     branches:
       - main
     paths:
+      # The overlays `aicr recipe --service kind --accelerator h100
+      # --intent training` applies (metadata.appliedOverlays), and the
+      # components the lane deploys from the bundle.
+      - 'recipes/overlays/base.yaml'
+      - 'recipes/overlays/monitoring-hpa.yaml'
+      - 'recipes/overlays/h100-any.yaml'
       - 'recipes/overlays/kind.yaml'
+      - 'recipes/overlays/h100-kind-training.yaml'
+      - 'recipes/components/nfd/**'
       - 'recipes/components/gpu-operator/**'
       - 'recipes/components/nvidia-dra-driver-gpu/**'
       - 'recipes/registry.yaml'
+      - 'recipes/data.go'
       - 'pkg/recipe/**'
       - 'pkg/bundler/**'
+      - 'pkg/client/**'
+      - 'pkg/cli/**'
       - 'cmd/aicr/**'
+      - 'go.mod'
+      - 'go.sum'
       - '.settings.yaml'
+      - '.github/actions/load-versions/**'
+      - '.github/actions/setup-build-tools/**'
       - '.github/workflows/gpu-operator-mokka-test.yaml'
       - '!**.md'
       - '!**.mdx'
