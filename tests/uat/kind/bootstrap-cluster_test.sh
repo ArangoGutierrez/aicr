@@ -371,6 +371,9 @@ printf '%s\n' 'env:' '      KIND_DIR: /tmp/kind' '      CFG: slurm-cluster-confi
 printf '%s\n' 'run: CLUSTER=aicr-mokka; kind create cluster --name "$CLUSTER" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
     > "${fixture}/workflows/independent-one-line.yaml"
 # shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'run: CLUSTER=aicr-mokka && kind create cluster --name "$CLUSTER" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
+    > "${fixture}/workflows/independent-one-line-and.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
 printf '%s\n' 'env:' '  CLUSTER: aicr-mokka' \
     'run: kind create cluster --name "${{ env.CLUSTER }}" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
     > "${fixture}/workflows/independent-expr.yaml"
