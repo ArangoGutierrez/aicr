@@ -372,7 +372,7 @@ jobs:
       # monitors are proven up before a signed evidence bundle claims them.
       #
       # 30 minutes, not the script's 1200s MONITOR_TIMEOUT: the kubectl reads
-      # that finish after that deadline, and the 30s re-read that confirms a
+      # that finish after that deadline, and the 75s re-read that confirms a
       # connection holds, need room to report which wait failed.
       # verify-gpu-health-monitors_test.sh pins the step above that worst case.
       - name: UAT - verify NVSentinel GPU health monitors

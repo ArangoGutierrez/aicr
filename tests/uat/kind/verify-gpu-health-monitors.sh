@@ -50,11 +50,14 @@ DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
 # took over 16 minutes while another large pull was in flight on the node.
 MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-1200}"
 MONITOR_INTERVAL=10
-# Two of the chart's 15s pollIntervalSeconds (gpu-health-monitor values.yaml:46
-# at v1.25.0; AICR does not override it). The monitor health-checks one poll
-# after it initialises, so two polls put a health check after any init line a
-# read has seen.
-MONITOR_CONFIRM_WAIT=30
+# Long enough for the first health check after any init line a read has seen
+# to be logged, even when it hangs. At v1.25.0 it starts one 15s poll after
+# the init (pollIntervalSeconds, gpu-health-monitor values.yaml:46; AICR does
+# not override it), and a hung check logs nothing until the probe watchdog's
+# deadline of 3 x pollIntervalSeconds = 45s has passed
+# (templates/configmap.yaml:27-34), on its next 1s tick (dcgm.py:45): 61s
+# after the init. 75s is that plus one more poll of margin.
+MONITOR_CONFIRM_WAIT=75
 # The chart names the monitor container after itself.
 MONITOR_CONTAINER="gpu-health-monitor"
 MONITOR_INIT_PATTERN='dcgm gpu_id are \[[0-9, ]*\]'
@@ -316,8 +319,9 @@ main() {
     # the engine since. The monitor waits one poll interval before its first
     # connect, so the evidence can trail readiness and is polled for in the
     # same budget. A clean read is only a sample: it can fall between an init
-    # and the health check that fails. So it is read again MONITOR_CONFIRM_WAIT
-    # later and must show the same pods, with no restart and no new init.
+    # and the health check that fails or hangs. So it is read again
+    # MONITOR_CONFIRM_WAIT later and must show the same pods, with no restart,
+    # no new init and still no failure after the latest one.
     baseline=""
     while :; do
         evidence="$(monitor_evidence "${context}" "${ds}" "${workers}")"
