@@ -21,7 +21,8 @@
 # nfd.enabled: false: the standalone nfd component is used. Its worker labels
 # Mellanox nodes pci-15b3.present (the RDMA readiness gate's node cohort)
 # through components/nfd/values-nvidia-nics.yaml, wired in by this recipe's
-# overlay.
+# overlay. For one release the chart's NodeFeatureRule
+# (nfd.deployNodeFeatureRules in values.yaml) produces the same label beside it.
 deployCR: false
 nvIpam:
   enabled: false

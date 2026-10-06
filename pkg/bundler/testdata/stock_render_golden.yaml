@@ -21,8 +21,9 @@ a100-aks-ubuntu-training-kubeflow:
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: 0de5bbb075cbef964e9797c6ba168792726cca0ac15593fe19f628a06417113a
-  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: 1ea2e43b07f1e19d7af9cd3414204ba747ea931f617711e89d6c396398b80287
+  004-network-operator-post/templates/nfd-network-rule.yaml: c0132d15d72b3045963fab6368ebd4f1e008dd16a0af0cb5d778ea950e19735c
+  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: a46bead13d0aeec2282b870efe2925a0a823f56d11bbfebe1a1ef660b07f43e1
+  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -82,10 +83,10 @@ a100-aks-ubuntu-training-kubeflow:
   017-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 55049d906d86be79fd24236a899a43bede6e42f8d44976a59c49ff6254068461
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
-  bundle-info.yaml: 891f560a41067543478ca3e8b24208eee94185a169fe55e316c0d255b50ea681
-  checksums.txt: 5bb3f569911175dd2f69a770be2727deb7e5ca7c190afdc732dbadf805670cb9
+  bundle-info.yaml: 787d892bcdb3705ddcd5c91d866585f40ba9c828397394a0540842484753cb8b
+  checksums.txt: 0727fc5e7ba505c5aa41d8bde17e30283732469ebf7fa95638fa9feaf1e094fa
   deploy.sh: 1d9a37cfa8557472dabe134c1054b471e61ae527733a911e4a4076d52715d7df
-  recipe.yaml: 5edab14fca9c3e93309256e4af9d5f0322495e6b8f6fd3a5892c88954e3bdd5e
+  recipe.yaml: e7f4b77798d97eea83bc882339ee9555f7bcdb40cd2747525dfb48c7c201ea2c
 a100-any:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -364,8 +365,9 @@ aks-ubuntu:
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: 0de5bbb075cbef964e9797c6ba168792726cca0ac15593fe19f628a06417113a
-  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: 1ea2e43b07f1e19d7af9cd3414204ba747ea931f617711e89d6c396398b80287
+  004-network-operator-post/templates/nfd-network-rule.yaml: c0132d15d72b3045963fab6368ebd4f1e008dd16a0af0cb5d778ea950e19735c
+  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: a46bead13d0aeec2282b870efe2925a0a823f56d11bbfebe1a1ef660b07f43e1
+  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -411,10 +413,10 @@ aks-ubuntu:
   014-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 0d062f192696b9c354c38d36205890b46bb289d26faea11562be3e4947f80e89
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
-  bundle-info.yaml: 988ea0908a98b1d31ed8abc54486bf3770efbf40418c0a004bbd38b0fc2d2cff
-  checksums.txt: b190f3d7edee775d601661fdc715035f5f311c4e75ef35d206a5fdb5def67bc5
+  bundle-info.yaml: e5f796caa03ae909217c4fc89ae8029859c6a3d00f36c0d7212fbc0e3eff6da8
+  checksums.txt: d0ef226d3bd109a8e2396d0123f55a621e0600d5759f89265ff7c8d9e846715c
   deploy.sh: 43a3f3423a20c9e8cb2cc003ce4e0255e5b3ef0e0d9ebb92a4a145726752a927
-  recipe.yaml: 4193168f2fa093da3151041954b27e342e542bb9ddb3c4e2632398d4318bc507
+  recipe.yaml: 49d87a5ec94007d90fddab8ed0b0ba2a63b2444e0d58754463b7e49108676c43
 b200-any:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -1454,12 +1456,12 @@ gb200-oke-ubuntu-training-kubeflow:
   003-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   003-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   003-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  003-network-operator/values.yaml: 6ca7ff53ec83e82fc8d2fbba1ff40ebeacd253954d9bc8c0f6d2a8c2136d7671
+  003-network-operator/values.yaml: 063308db02cf04714f59986b05f18ebd1cc1294801a5809dbbfd7e842dfe9b78
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
   004-network-operator-post/templates/nic-cluster-policy-oke-gb200.yaml: 82fe35068b0be0035cf1f9f1928949b547c5a6aa5419d4e7fba532a1f1c5c4a1
-  004-network-operator-post/values.yaml: 6ca7ff53ec83e82fc8d2fbba1ff40ebeacd253954d9bc8c0f6d2a8c2136d7671
+  004-network-operator-post/values.yaml: 063308db02cf04714f59986b05f18ebd1cc1294801a5809dbbfd7e842dfe9b78
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   005-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -1514,7 +1516,7 @@ gb200-oke-ubuntu-training-kubeflow:
   README.md: e1a822f844ae1e3874455163dee86cc166aa50007236943cc2ded790256a9ed2
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
   bundle-info.yaml: 2fbede346312a76f3a7a82b3dc878813bc498258dba7fddab5e9bbe338c70694
-  checksums.txt: efbeb8f5cafe4f3a03a716cedc2341c2df3e9e21be6d6c77a23f1b12584a6c28
+  checksums.txt: 951a541564d4d7a1c67f7b273d79f0674d060183d1b109c17e99d26b147ffc1b
   deploy.sh: e669a545cfa579953a82abdf5a42b7ec3269a7d35c20461af3b6ec5d780cbfc7
   recipe.yaml: 200f543bb411a20633ef573dc6011b1143582861f2fe28cfaba70e0788f77ecf
 gb300-any:
@@ -1845,12 +1847,12 @@ gb300-generic-ubuntu-training:
   003-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   003-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   003-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  003-network-operator/values.yaml: f476ddd1e8d55f18e2a2e26a7d872d6af2721f26637f976393f063104ab7508f
+  003-network-operator/values.yaml: b10a02574ccbf278cd9bc5204e01998b8e2a052f5591921ed98267ba9c6341d6
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nic-cluster-policy-generic-gb300.yaml: ffd7b94c3d0af6ecf81782739df47b9af3e0397eecc26e83ed558309e763d5a2
-  004-network-operator-post/values.yaml: f476ddd1e8d55f18e2a2e26a7d872d6af2721f26637f976393f063104ab7508f
+  004-network-operator-post/templates/nic-cluster-policy-generic-gb300.yaml: 11b9e98951d44aee1858ff75774267e2fb7a7d073c9e4c7e171bfa585f95a1fa
+  004-network-operator-post/values.yaml: b10a02574ccbf278cd9bc5204e01998b8e2a052f5591921ed98267ba9c6341d6
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   005-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -1896,7 +1898,7 @@ gb300-generic-ubuntu-training:
   README.md: 9cdc23b85e74ad0f0bb3f1f824e89d0c42e1fd37e4ba7e3e6894a3299ffb2260
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
   bundle-info.yaml: e6fd518eeb7f1656576cf8a02871f34ec9da8eed3e63265917d52e7d297ea820
-  checksums.txt: e4914e7d21e508518bf7ecb6378d0af50c91acfab6b91e04489e114a642d419b
+  checksums.txt: 2931cedb6223174003839115a5ddfd7376ec0435308e538924ca2638fa33ec87
   deploy.sh: 232d818fb3754a09053ad85f88642654063affd68a660b0c4ab38b9330ce0fdd
   recipe.yaml: a89836d18b4908f7c7eb3fbc77aded47d76478cc5c512b6a69f37adf25d8e9f0
 gb300-gke-cos-inference-dynamo:
@@ -2106,8 +2108,9 @@ h100-aks-ubuntu-inference-dynamo:
   009-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   009-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   009-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  009-network-operator-post/templates/nic-cluster-policy-aks.yaml: 0de5bbb075cbef964e9797c6ba168792726cca0ac15593fe19f628a06417113a
-  009-network-operator-post/templates/nvidia-peermem-reloader.yaml: 1ea2e43b07f1e19d7af9cd3414204ba747ea931f617711e89d6c396398b80287
+  009-network-operator-post/templates/nfd-network-rule.yaml: c0132d15d72b3045963fab6368ebd4f1e008dd16a0af0cb5d778ea950e19735c
+  009-network-operator-post/templates/nic-cluster-policy-aks.yaml: a46bead13d0aeec2282b870efe2925a0a823f56d11bbfebe1a1ef660b07f43e1
+  009-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   009-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
   010-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   010-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -2162,10 +2165,10 @@ h100-aks-ubuntu-inference-dynamo:
   021-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 132791f44eab8dac8c09697dfec711a571dc1de266c5abb0e6228e604c498ca3
   UPGRADING.md: 10879de5ffb2bd33be28427e71eb7ff17b673b254d7e73f830ae12f2ec32aae5
-  bundle-info.yaml: dd78cf5d5cf8075f9c61427431eec96cd6b80d115b7b70529b8eee5671abf555
-  checksums.txt: e520b9b20afab89d5861c5bdb998853140780a120d3ad6a7144d2ee2d149bb13
+  bundle-info.yaml: f7cf5419292dd709fd0779ee421de669d4cf4fcbb86a20fa30fb39ca6ab6a87e
+  checksums.txt: a29e990d947ace399274ce4553ff689d494fe4c21def67e76cf90886c0823cdf
   deploy.sh: c4ac141773d250db1ea80114cc91a546e4664fb098ca04de856b8d737888a62c
-  recipe.yaml: e93323c06a036b6e5f2fd4952ea95eacbefc21ad2ec247320ef65fd18df62c7e
+  recipe.yaml: cba35daffd0a5a20a349e5851fad4f6054ea9b1bb457779982faec48c66d4dc7
 h100-aks-ubuntu-training-kubeflow:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -2182,8 +2185,9 @@ h100-aks-ubuntu-training-kubeflow:
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: 0de5bbb075cbef964e9797c6ba168792726cca0ac15593fe19f628a06417113a
-  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: 1ea2e43b07f1e19d7af9cd3414204ba747ea931f617711e89d6c396398b80287
+  004-network-operator-post/templates/nfd-network-rule.yaml: c0132d15d72b3045963fab6368ebd4f1e008dd16a0af0cb5d778ea950e19735c
+  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: a46bead13d0aeec2282b870efe2925a0a823f56d11bbfebe1a1ef660b07f43e1
+  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -2243,10 +2247,10 @@ h100-aks-ubuntu-training-kubeflow:
   017-prometheus-adapter/values.yaml: 95231d7a46d650f96f844ca3734614271152a41f1230022c9d79960e44647c00
   README.md: 69d54c9c42bf0dae5d0935f2b3997a25e12e3e053c5f0a7fcbce459bc0dbb532
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
-  bundle-info.yaml: c2d651830eb53d51f7008316ac45ac7ec8e2673162147c0fa55aa6e0cd759ba5
-  checksums.txt: 5d0b165428209fc55c117c31df1e3e0bd1c6a3e4cf22e8b74af554ad5dd945f5
+  bundle-info.yaml: 63bca5b565f8cd9b4ce8bc783c355fb71b39135d0bd9f074e804d07a2e5b34a7
+  checksums.txt: 70f37496aedac97644cffce51531f13aa8a25941b8dbbb2198f1738a9ddcb356
   deploy.sh: 1d9a37cfa8557472dabe134c1054b471e61ae527733a911e4a4076d52715d7df
-  recipe.yaml: 89ac0cd25007a72718fd01a91d6adf1196585af47ed4b187a9357e3f1335809a
+  recipe.yaml: 5c4a32d94d0250337d526d70080aac959431227a4310a3bc51b25dad10b8dc96
 h100-aks-ubuntu-training-slurm:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -2263,8 +2267,9 @@ h100-aks-ubuntu-training-slurm:
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: 0de5bbb075cbef964e9797c6ba168792726cca0ac15593fe19f628a06417113a
-  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: 1ea2e43b07f1e19d7af9cd3414204ba747ea931f617711e89d6c396398b80287
+  004-network-operator-post/templates/nfd-network-rule.yaml: c0132d15d72b3045963fab6368ebd4f1e008dd16a0af0cb5d778ea950e19735c
+  004-network-operator-post/templates/nic-cluster-policy-aks.yaml: a46bead13d0aeec2282b870efe2925a0a823f56d11bbfebe1a1ef660b07f43e1
+  004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
@@ -2332,10 +2337,10 @@ h100-aks-ubuntu-training-slurm:
   019-slinky-slurm/values.yaml: 5643ef72841c8424adbe75cfb40f99691ec60c5e6498bb3a115824a3264bce9d
   README.md: 856f9c8339e966cc4a053f9816e7a2de7db0e7cb9bf228aced71c31bc70a0ff6
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
-  bundle-info.yaml: 4cd83d86bf92ad689e468522c45ee7c3130d6b0b8ef48baac5ce10933c2c57c5
-  checksums.txt: 6aac9ece945beaff38df7afc7dc5f05ecd5e385345a94180b909de8e23a9e4df
+  bundle-info.yaml: 815c2dd4b39fe37e0dafe38ec60c21bc063c05d47105495b37873d5f83b7bf44
+  checksums.txt: 37eed2d50fd70a7b8a7f39f9ffedc9819d404b9c495733146c515ec8ead40004
   deploy.sh: c337fdddc870ba97626541a9435e98734c5cbbb9808f2b6da4c8736e0ff75983
-  recipe.yaml: c33be8f1e337c4e65aa4499311a3bf707d7e3a5ea9b1f7863bfa77b4db7878a0
+  recipe.yaml: 9dd226e6f09fd0f97abaf1d835b56ae241b773a417892da868a6f5e76b9fa71b
 h100-any:
   001-cert-manager/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   001-cert-manager/install.sh: d8043b8845f8225dc46f54e05a3a86362e30487775b59ac74f47be104e8555bd
@@ -3093,7 +3098,7 @@ h100-kind-inference-dynamo:
   008-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   008-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   008-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  008-network-operator/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
+  008-network-operator/values.yaml: 2a7cf1b257fb3dbeeb3c8f47158dd854423e603d69a4b85401327f27925ebc71
   009-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   009-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   009-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -3138,7 +3143,7 @@ h100-kind-inference-dynamo:
   README.md: fa63d3706bde2691b46639c6bbe7cbe0c5b4d39062c3ee1a7406aa8f24303b79
   UPGRADING.md: 10879de5ffb2bd33be28427e71eb7ff17b673b254d7e73f830ae12f2ec32aae5
   bundle-info.yaml: 60898e75c31d9b7bbee4f3a745fa2ce0a9766acff9fa71e2ea7062f5fb7241de
-  checksums.txt: 2d524f73127add1fc713e57913b4309f1ded4a26a94f227574b934df55de8983
+  checksums.txt: 56643ea86a661cdc54a3d8fd70d4c03bfdc5f6c8454d923e3695935d57786ce3
   deploy.sh: 1130da7bacf874dc1f8fb01412dbe2e3c62336de0c69eb50989999db17956ec6
   recipe.yaml: 357cb5eedeb5ad4f744e656d40b4f0363716d5cb440b1cb2a0848f12a678c220
 h100-kind-training-kubeflow:
@@ -3153,7 +3158,7 @@ h100-kind-training-kubeflow:
   003-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   003-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   003-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  003-network-operator/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
+  003-network-operator/values.yaml: 2a7cf1b257fb3dbeeb3c8f47158dd854423e603d69a4b85401327f27925ebc71
   004-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   004-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -3203,7 +3208,7 @@ h100-kind-training-kubeflow:
   README.md: b006eacfcb9d591473dfe6a9d47bef8659712f06f34e070ea0e9c0d64fc5c950
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
   bundle-info.yaml: 17a46a6e08c0f33d6601c67c2c40549285fa53a3bf501fff4b9747bb938244a3
-  checksums.txt: 7498487d155364df1903bcf257ac1b06bf4803a850e0a363b9db798e97d0b074
+  checksums.txt: db31f39790c57388e738c60fbe8c7d7ccc17c5444359533383a29d5e38dd2966
   deploy.sh: e669a545cfa579953a82abdf5a42b7ec3269a7d35c20461af3b6ec5d780cbfc7
   recipe.yaml: 242cd91905770ca9295a4ae44d17511fed99ff2c4d6fcf59f08c11f952fc7390
 h100-kind-training-slurm:
@@ -3218,7 +3223,7 @@ h100-kind-training-slurm:
   003-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   003-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   003-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  003-network-operator/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
+  003-network-operator/values.yaml: 2a7cf1b257fb3dbeeb3c8f47158dd854423e603d69a4b85401327f27925ebc71
   004-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   004-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -3280,7 +3285,7 @@ h100-kind-training-slurm:
   README.md: 8dd1a8b72270f7b86619b3c2cee76af6d9cae0a73d163b5a4d6b51daa4842512
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
   bundle-info.yaml: 3cd9fd302788aff63399a90071c6262f8316825dcebc589cb8d04a4070082e05
-  checksums.txt: d14b006402fe86e496b007ac1731fec7bf956c1dfa7a0e113dae3572e63b7f08
+  checksums.txt: fc531507073dac256b4b57f7d695273c4eb8568b1148dcee6f1f87934a96539e
   deploy.sh: e67250472d44b12eb1c1a89f69e1aed44a8535d93bb48e55f30b15de7cb9ac8b
   recipe.yaml: 7ee7b56edb965a17346276aab4dbd11b71edffab4d9dd3cbf57483cac311ec55
 h200-any:
@@ -3732,12 +3737,12 @@ l40s-oke-training-kubeflow:
   003-network-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   003-network-operator/install.sh: d8c04188166a4bf1c0ca00ce34d701183037b90961d9e17604e7a8a3cf5ef877
   003-network-operator/upstream.env: bee6465a02245e027c93b643de53775eab2cd948c247db33742921e48b33ff6c
-  003-network-operator/values.yaml: 6ca7ff53ec83e82fc8d2fbba1ff40ebeacd253954d9bc8c0f6d2a8c2136d7671
+  003-network-operator/values.yaml: 063308db02cf04714f59986b05f18ebd1cc1294801a5809dbbfd7e842dfe9b78
   004-network-operator-post/Chart.yaml: 3a95a7dada4637e533be2456833f41fd1262364abeeb854c40b77d601000e081
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
   004-network-operator-post/templates/nic-cluster-policy-oke-l40s.yaml: 11c60815ad4cbfc20187ef7d54d2e54293b6360ab612ce1e53ee2ba94db12311
-  004-network-operator-post/values.yaml: 6ca7ff53ec83e82fc8d2fbba1ff40ebeacd253954d9bc8c0f6d2a8c2136d7671
+  004-network-operator-post/values.yaml: 063308db02cf04714f59986b05f18ebd1cc1294801a5809dbbfd7e842dfe9b78
   005-nodewright-operator/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   005-nodewright-operator/install.sh: 5bb299d13650bdb1baa19ea8047b33baa94eb03a48a8b5b0102f1ba533b392c2
   005-nodewright-operator/upstream.env: d59df4c212a18bd8adaca3b6a0ce100f26a59050791953f44e1961f20436b1c4
@@ -3787,7 +3792,7 @@ l40s-oke-training-kubeflow:
   README.md: 4584a74ffefd5852df1f7fe45937840c61b86bf26e26d270b5ff14f605299c6e
   UPGRADING.md: 57a1b20514288b52a57140c03e1c5341b846243dfc15c74b42a2645292f21b72
   bundle-info.yaml: 01dc464c32213c6fd8d92352a486637943629a493ca40b64b863cb1662133d68
-  checksums.txt: 4e1ee2773ccfb4a3868c57ccb86f77b6a671534f8b041ed07226a2d936782088
+  checksums.txt: 25aa14108708e09f2b5fc1e0df1e4bb754dae616039d4c7bfd10ef9583976da5
   deploy.sh: e669a545cfa579953a82abdf5a42b7ec3269a7d35c20461af3b6ec5d780cbfc7
   recipe.yaml: 650d75daef8c57afcc77855204959d6857ba61a63f03272442ecafcf6d57bf7a
 monitoring-hpa:
