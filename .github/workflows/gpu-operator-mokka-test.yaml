@@ -366,8 +366,12 @@ jobs:
 
           deadline=$((SECONDS + 600))
           while [ "$SECONDS" -lt "$deadline" ]; do
+            # A failed read is "not converged yet", not the end of the wait:
+            # under set -e it would skip the diagnostics below. Unread values
+            # compare as strings so they never equal the converged state.
             ready=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o json \
-              | jq --arg n "$GPU_COUNT" '[.items[] | select((.status.allocatable["nvidia.com/gpu"] // "0") == $n)] | length')
+              | jq --arg n "$GPU_COUNT" '[.items[] | select((.status.allocatable["nvidia.com/gpu"] // "0") == $n)] | length' \
+              || true)
             # Readiness, not phase. A pod sitting Running with 0/1 containers
             # ready passes a phase check while its probe is still failing, so
             # the assertions below would run against a half-converged stack.
@@ -377,11 +381,12 @@ jobs:
                 | select(.status.phase != "Succeeded")
                 | select( ((.status.containerStatuses // []) | length) == 0
                           or ((.status.containerStatuses // []) | map(.ready) | index(false) != null) )
-              ] | length')
+              ] | length' || true)
+            ready=${ready:-unread} settling=${settling:-unread}
             OPERAND_GAP=""
             if operands_ready; then operands="all"; else operands="gap:$OPERAND_GAP"; fi
             echo "  workers_at_capacity=$ready/$workers pods_settling=$settling operands=$operands"
-            if [ "$ready" = "$workers" ] && [ "$settling" -eq 0 ] && [ "$operands" = "all" ]; then
+            if [ "$ready" = "$workers" ] && [ "$settling" = "0" ] && [ "$operands" = "all" ]; then
               echo "converged"; exit 0
             fi
             sleep 15
