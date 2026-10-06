@@ -300,7 +300,8 @@ check "the host engine release is the one gpu-operator ships" \
     "${DCGM_VERSION}"
 
 # 2. The pod label is the labeler's selector (--dcgm-app-label, default
-#    nvidia-dcgm). Rename it and the labeler sees no DCGM pod at all.
+#    nvidia-dcgm,nvidia-dcgm-dra at v1.25.0). Rename it and the labeler sees
+#    no DCGM pod at all.
 check "the DaemonSet carries the app label the labeler selects on" "1" \
     "$(dcgm_manifest | grep -cE '^        app: nvidia-dcgm$' | tr -d ' ')"
 
