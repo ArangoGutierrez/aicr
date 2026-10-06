@@ -37,7 +37,7 @@ import (
 // false; the GPU Operator's NFD processes the rule) but must NOT disable the
 // rule itself. AKS is the deliberate exception: it sets
 // nfd.deployNodeFeatureRules: false and attaches its own targeted rule
-// manifest (nfd-network-rule.yaml) instead.
+// manifest (talos-namespace.yaml) instead.
 //
 // A contributor copying AKS's `deployNodeFeatureRules: false` into another
 // values file — or flipping it in the shared component base values.yaml —
