@@ -2799,7 +2799,7 @@ bundles/
     ├── values.yaml
     ├── cluster-values.yaml
     └── templates/
-        └── nic-cluster-policy-aks.yaml
+        └── nfd-network-rule.yaml
 ```
 
 **Folder layout rules:**
