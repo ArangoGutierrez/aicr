@@ -16,6 +16,7 @@ package recipe
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -26,6 +27,7 @@ const (
 	nfdPubNFD             = "nfd"
 	nfdPubNetworkOperator = "network-operator"
 	nfdPubMellanoxLabel   = "feature.node.kubernetes.io/pci-15b3.present"
+	nfdPubMellanoxBare    = "pci-15b3.present"
 )
 
 // nfdPubChartRule is a NodeFeatureRule that a registry chart renders itself,
@@ -56,12 +58,15 @@ var nfdPubManifestFeatureRe = regexp.MustCompile(`(?m)^\s*(?:-\s*)?feature:\s*["
 // merged effective values:
 //
 //  1. A recipe with network-operator has exactly one nfd-worker sources.custom
-//     rule producing pci-15b3.present (the NicClusterPolicy nodeAffinity and
-//     the RDMA readiness gate cohort), device-specific on AKS and class-based
-//     elsewhere.
-//  2. A recipe without network-operator has no such rule: the GPU Operator
-//     validator waits for the network-operator MOFED driver on labeled nodes
-//     when GPUDirect RDMA is on and useHostMofed is false.
+//     rule producing pci-15b3.present="true" (the NicClusterPolicy
+//     nodeAffinity and the RDMA readiness gate cohort), matching vendor 15b3
+//     and device 101c/101e on AKS, vendor 15b3 and class 0200/0207 elsewhere.
+//  2. A recipe without network-operator has no such rule, whatever its value:
+//     the GPU Operator validator waits for the network-operator MOFED driver
+//     on labeled nodes when GPUDirect RDMA is on and useHostMofed is false.
+//
+// A rule label counts with or without the feature.node.kubernetes.io/ prefix,
+// because nfd-master adds that prefix to an un-namespaced label.
 //  3. No NodeFeatureRule the recipe renders (chart-shipped or a manifest)
 //     reads a feature that noPublishFeatures strips.
 func TestNFDFeaturePublishingContract(t *testing.T) {
@@ -106,25 +111,17 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 				t.Fatalf("%s ships network-operator without the nfd component, so nothing labels %s", name, nfdPubMellanoxLabel)
 			case hasNetOp:
 				if len(rules) != 1 {
-					t.Fatalf("%s ships network-operator: want exactly one nfd-worker sources.custom rule labeling %s=\"true\", got %d; "+
+					t.Fatalf("%s ships network-operator: want exactly one nfd-worker sources.custom rule labeling %s (or %s), got %d; "+
 						"set the nfd componentRef valuesFile to components/nfd/values-nvidia-nics.yaml (values-nvidia-nics-aks.yaml on AKS)",
-						name, nfdPubMellanoxLabel, len(rules))
+						name, nfdPubMellanoxLabel, nfdPubMellanoxBare, len(rules))
 				}
-				exprs := nfdPubPCIExpressions(rules[0])
-				_, byDevice := exprs["device"]
-				_, byClass := exprs["class"]
-				if criteria.Service == CriteriaServiceAKS {
-					if !byDevice || byClass {
-						t.Errorf("%s: AKS needs the device-specific rule (101c/101e, values-nvidia-nics-aks.yaml); "+
-							"a class match also labels Azure's accelerated-networking Ethernet VFs", name)
-					}
-				} else if !byClass || byDevice {
-					t.Errorf("%s: want the class-based rule (0200/0207, values-nvidia-nics.yaml)", name)
+				for _, problem := range nfdPubNICRuleProblems(rules[0], criteria.Service == CriteriaServiceAKS) {
+					t.Errorf("%s: %s", name, problem)
 				}
 			default:
 				if len(rules) != 0 {
-					t.Errorf("%s has no network-operator but nfd-worker labels %s: the GPU Operator validator would wait "+
-						"for a MOFED driver nothing installs", name, nfdPubMellanoxLabel)
+					t.Errorf("%s has no network-operator but nfd-worker labels %s (%d rules): the GPU Operator validator would wait "+
+						"for a MOFED driver nothing installs", name, nfdPubMellanoxLabel, len(rules))
 				}
 			}
 
@@ -245,11 +242,79 @@ func nfdPubMellanoxRules(values map[string]any) []map[string]any {
 			continue
 		}
 		labels, _ := rule["labels"].(map[string]any)
-		if v, ok := labels[nfdPubMellanoxLabel].(string); ok && v == "true" {
+		_, prefixed := labels[nfdPubMellanoxLabel]
+		_, bare := labels[nfdPubMellanoxBare]
+		if prefixed || bare {
 			out = append(out, rule)
 		}
 	}
 	return out
+}
+
+// nfdPubNICRuleProblems compares a pci-15b3.present rule against the
+// values-nvidia-nics*.yaml contract. On AKS a class match would also label
+// the Mellanox Ethernet VFs that Azure accelerated networking attaches, so
+// AKS matches the InfiniBand VF device IDs instead.
+func nfdPubNICRuleProblems(rule map[string]any, aks bool) []string {
+	var problems []string
+	labels, _ := rule["labels"].(map[string]any)
+	for _, key := range []string{nfdPubMellanoxLabel, nfdPubMellanoxBare} {
+		if v, ok := labels[key]; ok && v != "true" {
+			problems = append(problems, fmt.Sprintf("rule %v label %s: got %#v, want the string \"true\"", rule["name"], key, v))
+		}
+	}
+
+	exprs := nfdPubPCIExpressions(rule)
+	want := []struct {
+		key    string
+		values []string
+	}{
+		{"vendor", []string{"15b3"}},
+		{"class", []string{"0200", "0207"}},
+	}
+	forbidden := "device"
+	if aks {
+		want[1].key, want[1].values = "device", []string{"101c", "101e"}
+		forbidden = "class"
+	}
+	for _, w := range want {
+		op, values, ok := nfdPubExpression(exprs, w.key)
+		if !ok {
+			problems = append(problems, fmt.Sprintf("rule %v pci.device %s: got no expression, want op \"In\" value %q",
+				rule["name"], w.key, w.values))
+			continue
+		}
+		if op != "In" || !slices.Equal(values, w.values) {
+			problems = append(problems, fmt.Sprintf("rule %v pci.device %s: got op %q value %q, want op \"In\" value %q",
+				rule["name"], w.key, op, values, w.values))
+		}
+	}
+	if _, ok := exprs[forbidden]; ok {
+		problems = append(problems, fmt.Sprintf("rule %v pci.device %s: got an expression, want none (aks=%v)",
+			rule["name"], forbidden, aks))
+	}
+	return problems
+}
+
+// nfdPubExpression decodes one matchExpressions entry, {op: In, value: [...]}.
+// A non-string value element is rendered with its type so it never equals a
+// wanted ID.
+func nfdPubExpression(exprs map[string]any, key string) (string, []string, bool) {
+	e, ok := exprs[key].(map[string]any)
+	if !ok {
+		return "", nil, false
+	}
+	op, _ := e["op"].(string)
+	list, _ := e["value"].([]any)
+	values := make([]string, 0, len(list))
+	for _, v := range list {
+		if s, ok := v.(string); ok {
+			values = append(values, s)
+		} else {
+			values = append(values, fmt.Sprintf("%T(%v)", v, v))
+		}
+	}
+	return op, values, true
 }
 
 func nfdPubPCIExpressions(rule map[string]any) map[string]any {
