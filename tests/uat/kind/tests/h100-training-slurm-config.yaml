@@ -89,9 +89,10 @@
 # #2358 topology assertion, and the gpu_health step
 # (tests/uat/kind/verify-gpu-health-monitors.sh): NVSentinel's GPU health
 # monitor Ready on every worker and connected to a real DCGM host engine that
-# bootstrap-cluster.sh runs over the mocked NVML. That host engine is a 1.9GB
-# image pull, which a local bootstrap-cluster.sh run waits up to 900s for. What
-# a green run does NOT tell you, in one list:
+# bootstrap-cluster.sh runs over the mocked NVML. bootstrap-cluster.sh, locally
+# as in CI, pulls that 1.9GB host engine image (up to 900s) and pre-pulls the
+# 2.5GB monitor image (up to 1200s). What a green run does NOT tell you, in
+# one list:
 #
 #   1. a regression in gpu-operator
 #   2. a regression in nvidia-dra-driver-gpu
