@@ -52,6 +52,19 @@ var nfdPubChartRules = []nfdPubChartRule{
 	{component: "k8s-nim-operator-ocp", enablePath: []string{"nfd", "nodeFeatureRules", "deviceID"}, chartDefault: false, feature: "pci.device"},
 }
 
+// nfdPubTransitional is the expand phase of the #3038 pci-15b3.present
+// handoff: for one release the cluster-side NIC rules ship beside the
+// nfd-worker rule, so the label never drops while nfd-worker rolls, and once a
+// node's worker strips pci.* they match nothing. Each key is a chart rule
+// (component and enable path) or a manifest path; the value is the feature it
+// reads. An entry is skipped only on a leaf whose nfd-worker rule exists
+// (invariant 1). Delete the entries together with the rules in the contract
+// change.
+var nfdPubTransitional = map[string]string{
+	"network-operator nfd.deployNodeFeatureRules":                 "pci.device",
+	"components/network-operator/manifests/nfd-network-rule.yaml": "pci.device",
+}
+
 // nfdPubStripList is the #3038 nfd-master memory fix and must change together
 // with worker.config.core.noPublishFeatures in recipes/components/nfd/values.yaml.
 var nfdPubStripList = []string{
@@ -72,9 +85,15 @@ var nfdPubManifestFeatureRe = regexp.MustCompile(`(?m)^\s*(?:-\s*)?feature:\s*["
 //     the GPU Operator validator waits for the network-operator MOFED driver
 //     on labeled nodes when GPUDirect RDMA is on and useHostMofed is false.
 //  3. No NodeFeatureRule the recipe renders (chart-shipped or a manifest)
-//     reads a feature that noPublishFeatures strips.
+//     reads a feature that noPublishFeatures strips, except the two
+//     transitional NIC rules (see nfdPubTransitional).
 //  4. A recipe with nfd strips exactly nfdPubStripList: the nfd-master memory
 //     fix for #3038.
+//  5. A recipe with nfd has no worker.config.sources.pci that emits
+//     pci-15b3.present, a second producer invariants 1 and 2 cannot see.
+//  6. A recipe with network-operator leaves the rule in 1 running: nothing
+//     disables the custom label source or the pci feature source, and no
+//     label whitelist filters labels.
 //
 // A rule label counts with or without the feature.node.kubernetes.io/ prefix,
 // because nfd-master adds that prefix to an un-namespaced label.
@@ -113,6 +132,16 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 				}
 				patterns = nfdPubStrings(nfdPubLookup(values, "worker", "config", "core", "noPublishFeatures"))
 				rules = nfdPubMellanoxRules(values)
+				if whitelist, fields, ok := nfdPubPCISourceNIC(values); ok {
+					t.Errorf("%s: nfd worker.config.sources.pci labels Mellanox NICs %s (effective deviceLabelFields %q, "+
+						"deviceClassWhitelist %q): a second producer bypasses invariants 1 and 2, and on AKS labels the "+
+						"accelerated-networking Ethernet VFs", name, nfdPubMellanoxLabel, fields, whitelist)
+				}
+				if hasNetOp {
+					for _, problem := range nfdPubWorkerRuleProblems(values) {
+						t.Errorf("%s: %s, so the nfd-worker rule labeling %s never runs", name, problem, nfdPubMellanoxLabel)
+					}
+				}
 			}
 
 			switch {
@@ -120,12 +149,13 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 				t.Fatalf("%s ships network-operator without the nfd component, so nothing labels %s", name, nfdPubMellanoxLabel)
 			case hasNetOp:
 				if len(rules) != 1 {
-					t.Fatalf("%s ships network-operator: want exactly one nfd-worker sources.custom rule labeling %s (or %s), got %d; "+
+					t.Errorf("%s ships network-operator: want exactly one nfd-worker sources.custom rule labeling %s (or %s), got %d; "+
 						"set the nfd componentRef valuesFile to components/nfd/values-nvidia-nics.yaml (values-nvidia-nics-aks.yaml on AKS)",
 						name, nfdPubMellanoxLabel, nfdPubMellanoxBare, len(rules))
-				}
-				for _, problem := range nfdPubNICRuleProblems(rules[0], criteria.Service == CriteriaServiceAKS) {
-					t.Errorf("%s: %s", name, problem)
+				} else {
+					for _, problem := range nfdPubNICRuleProblems(rules[0], criteria.Service == CriteriaServiceAKS) {
+						t.Errorf("%s: %s", name, problem)
+					}
 				}
 			default:
 				if len(rules) != 0 {
@@ -146,6 +176,7 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 			if len(patterns) == 0 {
 				return
 			}
+			redundant := hasNetOp && len(rules) == 1
 			for _, cr := range nfdPubChartRules {
 				if !nfdPubEnabled(result.ComponentRefs, cr.component) {
 					continue
@@ -158,7 +189,8 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 				if v, ok := nfdPubLookup(values, cr.enablePath...).(bool); ok {
 					enabled = v
 				}
-				if enabled && nfdPubStripped(cr.feature, patterns) {
+				transitional := redundant && nfdPubTransitional[cr.component+" "+strings.Join(cr.enablePath, ".")] == cr.feature
+				if enabled && nfdPubStripped(cr.feature, patterns) && !transitional {
 					t.Errorf("%s: %s renders a NodeFeatureRule (%s) reading %s, which nfd.worker.config.core.noPublishFeatures strips",
 						name, cr.component, strings.Join(cr.enablePath, "."), cr.feature)
 				}
@@ -173,7 +205,8 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 						t.Fatalf("%s: read %s: %v", name, p, err)
 					}
 					for _, f := range nfdPubManifestRuleFeatures(string(content)) {
-						if nfdPubStripped(f, patterns) {
+						transitional := redundant && nfdPubTransitional[p] == f
+						if nfdPubStripped(f, patterns) && !transitional {
 							t.Errorf("%s: manifest %s has a NodeFeatureRule reading %s, which noPublishFeatures strips", name, p, f)
 						}
 					}
@@ -267,6 +300,101 @@ func nfdPubMellanoxRules(values map[string]any) []map[string]any {
 		}
 	}
 	return out
+}
+
+// nfdPubPCISourceNIC returns the effective nfd-worker sources.pci lists and
+// whether they label a Mellanox NIC (class 0200 or 0207) pci-15b3.present.
+// Per NFD v0.19.0 source/pci/pci.go: the defaults are whitelist
+// ["03","0b40","12"] and fields ["class","vendor"] (:46-51); configured fields
+// are kept in mandatoryDevAttrs order (utils.go:31) with unknown names dropped,
+// falling back to the defaults when none is left (:95-113); a device is
+// labeled when a whitelist entry prefixes its 4-digit class, and the label
+// joins the fields with "_" (:116-128), so only ["vendor"] yields 15b3.present.
+func nfdPubPCISourceNIC(values map[string]any) (whitelist, fields []string, labels bool) {
+	pci, _ := nfdPubLookup(values, "worker", "config", "sources", "pci").(map[string]any)
+	whitelist = []string{"03", "0b40", "12"}
+	if v := pci["deviceClassWhitelist"]; v != nil {
+		whitelist = nfdPubStrings(v)
+	}
+	configured := []string{"class", "vendor"}
+	if v := pci["deviceLabelFields"]; v != nil {
+		configured = nfdPubStrings(v)
+	}
+	for _, attr := range []string{"class", "vendor", "device", "subsystem_vendor", "subsystem_device"} {
+		if slices.Contains(configured, attr) {
+			fields = append(fields, attr)
+		}
+	}
+	if len(fields) == 0 {
+		fields = []string{"class", "vendor"}
+	}
+	if !slices.Equal(fields, []string{"vendor"}) {
+		return whitelist, fields, false
+	}
+	for _, w := range whitelist {
+		for _, class := range []string{"0200", "0207"} {
+			if strings.HasPrefix(class, strings.ToLower(w)) {
+				return whitelist, fields, true
+			}
+		}
+	}
+	return whitelist, fields, false
+}
+
+// nfdPubWorkerRuleProblems lists the merged nfd values that would keep the
+// nfd-worker sources.custom rule from labeling a node. Per NFD v0.19.0
+// pkg/nfd-worker/nfd-worker.go: labelSources and featureSources default to
+// ["all"] (:302-303), the custom label source reads features only from
+// enabled feature sources (:340, source/source.go:182), the deprecated
+// core.sources replaces labelSources (:734-736), and labelWhiteList filters
+// every label source (:792-836). The worker flags -label-sources,
+// -feature-sources and -options override the config file (:672-691,
+// :744-764); cmd/nfd-worker/main.go:106-148 has no -label-whitelist flag.
+func nfdPubWorkerRuleProblems(values map[string]any) []string {
+	var problems []string
+	core, _ := nfdPubLookup(values, "worker", "config", "core").(map[string]any)
+	if v := core["sources"]; v != nil {
+		problems = append(problems, fmt.Sprintf("nfd worker.config.core.sources is %v (deprecated; it replaces labelSources)", v))
+	}
+	if v := core["labelSources"]; v != nil && !nfdPubSourceEnabled(nfdPubStrings(v), "custom") {
+		problems = append(problems, fmt.Sprintf("nfd worker.config.core.labelSources %v disables the custom label source", v))
+	}
+	if v := core["featureSources"]; v != nil && !nfdPubSourceEnabled(nfdPubStrings(v), "pci") {
+		problems = append(problems, fmt.Sprintf("nfd worker.config.core.featureSources %v disables the pci feature source", v))
+	}
+	if v := core["labelWhiteList"]; v != nil && v != "" {
+		problems = append(problems, fmt.Sprintf("nfd worker.config.core.labelWhiteList is %#v", v))
+	}
+	args, _ := nfdPubLookup(values, "worker", "extraArgs").([]any)
+	for _, a := range args {
+		s, _ := a.(string)
+		if !strings.HasPrefix(s, "-") {
+			continue
+		}
+		for _, flag := range []string{"label-sources", "feature-sources", "options"} {
+			if strings.HasPrefix(strings.TrimLeft(s, "-"), flag) {
+				problems = append(problems, fmt.Sprintf("nfd worker.extraArgs passes %q, which overrides the config file", s))
+			}
+		}
+	}
+	return problems
+}
+
+// nfdPubSourceEnabled replays nfd-worker v0.19.0 source-list processing
+// (nfd-worker.go:572-598, :604-630): entries apply in order, "all" enables
+// every source (none but the fake source is off by default), "-name"
+// disables one.
+func nfdPubSourceEnabled(list []string, name string) bool {
+	on := false
+	for _, s := range list {
+		switch s {
+		case "all", name:
+			on = true
+		case "-" + name:
+			on = false
+		}
+	}
+	return on
 }
 
 // nfdPubNICRuleProblems compares a pci-15b3.present rule against the
