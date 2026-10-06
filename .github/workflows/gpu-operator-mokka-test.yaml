@@ -79,6 +79,7 @@ on:
       - 'cmd/aicr/**'
       - 'go.mod'
       - 'go.sum'
+      - '.go-version'
       - '.settings.yaml'
       - '.github/actions/load-versions/**'
       - '.github/actions/setup-build-tools/**'
