@@ -112,6 +112,37 @@ check "the latest initialisation wins" "0" \
     "$(monitor_gpu_count "${CONNECTED_LOG}
 $(log_line info "dcgm gpu_id are []")")"
 
+# CONNECTED ONCE IS NOT CONNECTED NOW. The init line is logged in the same
+# loop iteration as the connect, before the field watches are set up and before
+# any health check runs, so a host engine that errors or dies after it leaves
+# the line in place and logs only failures after it. Each message below is one
+# the monitor emits at v1.25.0 when it loses DCGM (dcgm.py:195, :735, :740,
+# :1064, :1142, :1246, :1259); any of them after the latest init line fails.
+CONNECTED_THEN_LOST_LOG="${CONNECTED_LOG}
+$(log_line error "Unexpected error during DCGM health check: Host engine connection invalid/disconnected. Indicating connectivity failure.")
+$(log_line warning "DCGM connectivity failure detected")
+$(log_line error "Error creating DCGM handle: Unable to connect to any DCGM address")"
+monitor_failed_after_init "${CONNECTED_LOG}"; check "a connected log shows no failure since init" "1" "$?"
+monitor_failed_after_init "${CONNECTED_THEN_LOST_LOG}"; check "a log that lost DCGM after init shows the failure" "0" "$?"
+while IFS='|' read -r level message; do
+    monitor_failed_after_init "${CONNECTED_LOG}
+$(log_line "${level}" "${message}")"
+    check "a failure after init is seen: ${message}" "0" "$?"
+done <<'EOF'
+error|DCGM probe dcgm_health_check has not returned after 45.2s (deadline 45.0s); treating the DCGM probe as unresponsive
+error|DCGM health check timed out: DCGM_ST_TIMEOUT. Indicating connectivity failure.
+error|Unexpected error during DCGM health check: DCGM_ST_NVML_ERROR. Indicating connectivity failure.
+error|Error creating DCGM handle: Unable to connect to any DCGM address
+warning|DCGM monitoring initialization failed, rolling back group: DCGM_ST_NOT_SUPPORTED
+error|Error getting DCGM handle: DCGM_ST_NOT_SUPPORTED
+warning|DCGM connectivity failure detected
+EOF
+# A monitor that starts before its host engine answers fails to connect first
+# and then initialises. Failures before the latest init line are history.
+monitor_failed_after_init "${UNCONNECTED_LOG}
+${CONNECTED_LOG}"
+check "failures before the latest init line are not counted" "1" "$?"
+
 # --- the live verdict: driving main ----------------------------------------
 #
 # The cases above call pure helpers. The reads happen in main, and a read is
@@ -135,32 +166,39 @@ ALL_WORKERS="node/testcluster-worker
 node/testcluster-worker2
 node/testcluster-worker3
 node/testcluster-worker4"
-ALL_MONITOR_PODS="testcluster-worker ${MONITOR}-a
-testcluster-worker2 ${MONITOR}-b
-testcluster-worker3 ${MONITOR}-c
-testcluster-worker4 ${MONITOR}-d"
+# Pod listing rows are "<node> <pod> <restartCount> <ready>". An @N@ in a row
+# becomes the number of listings so far, which is a pod that is replaced or
+# restarts between reads.
+ALL_MONITOR_PODS="testcluster-worker ${MONITOR}-a 0 true
+testcluster-worker2 ${MONITOR}-b 0 true
+testcluster-worker3 ${MONITOR}-c 0 true
+testcluster-worker4 ${MONITOR}-d 0 true"
 stub_defaults() {
     stub_monitor_pods="${ALL_MONITOR_PODS}"
     stub_monitor_log="${CONNECTED_LOG}"
     stub_odd_pod="" stub_odd_log=""
     stub_logs_rc=0
     stub_unconnected_log_reads=0
+    stub_reconnect_loop=0
 }
 stub_defaults
 
 # main_with <labelled-nodes> <desired> <ready> <sibling-desired> [<sibling-rc>]
 #           [<unlabelled-reads>]
 #
-# Prints main's stdout and stderr, then a final "label reads: N" line; the exit
-# code is main's. The first <unlabelled-reads> node reads return no node, which
-# is a labeler that has not reconciled yet. An unstubbed read fails with 97 so
-# a case can never pass on a call this harness did not expect.
+# Prints main's stdout and stderr, then final "label reads: N", "log reads: N"
+# and "sleeps: ..." lines; the exit code is main's. The first
+# <unlabelled-reads> node reads return no node, which is a labeler that has not
+# reconciled yet. An unstubbed read fails with 97 so a case can never pass on a
+# call this harness did not expect.
 main_with() {
     local stub_labelled="$1" stub_desired="$2" stub_ready="$3"
     local stub_sibling="$4" stub_sibling_rc="${5:-0}" stub_unlabelled_reads="${6:-0}"
-    local stub_reads_log stub_log_reads_log stub_rc
+    local stub_reads_log stub_log_reads_log stub_pod_reads_log stub_sleeps_log stub_rc
     stub_reads_log="$(mktemp)"
     stub_log_reads_log="$(mktemp)"
+    stub_pod_reads_log="$(mktemp)"
+    stub_sleeps_log="$(mktemp)"
     (
         kubectl() {
             case "$*" in
@@ -178,17 +216,32 @@ main_with() {
                     printf '%s' "${stub_sibling}"
                     return "${stub_sibling_rc}"
                     ;;
-                *" get pods "*"${MONITOR}"*) printf '%s\n' "${stub_monitor_pods}" ;;
+                *" get pods "*"${MONITOR}"*)
+                    echo read >>"${stub_pod_reads_log}"
+                    local listing
+                    listing="$(wc -l <"${stub_pod_reads_log}" | tr -d ' ')"
+                    printf '%s\n' "${stub_monitor_pods//@N@/${listing}}"
+                    ;;
                 *" logs "*" -c gpu-health-monitor"*)
                     # The first <stub_unconnected_log_reads> reads see a
                     # monitor that has not connected yet.
                     echo read >>"${stub_log_reads_log}"
-                    if (($(wc -l <"${stub_log_reads_log}") <= stub_unconnected_log_reads)); then
+                    local log_read cycle
+                    log_read="$(wc -l <"${stub_log_reads_log}" | tr -d ' ')"
+                    if ((log_read <= stub_unconnected_log_reads)); then
                         printf '%s\n' "${UNCONNECTED_LOG}"
                     elif [[ -n "${stub_odd_pod}" && "$*" == *" ${stub_odd_pod} "* ]]; then
                         printf '%s\n' "${stub_odd_log}"
                     else
                         printf '%s\n' "${stub_monitor_log}"
+                    fi
+                    # A reconnect loop: every read finds one more lost-and-
+                    # re-initialised cycle, each ending on a clean init line.
+                    if ((stub_reconnect_loop)); then
+                        for ((cycle = 0; cycle < log_read; cycle++)); do
+                            log_line warning "DCGM connectivity failure detected"
+                            log_line info "dcgm gpu_id are [0, 1, 2, 3, 4, 5, 6, 7]"
+                        done
                     fi
                     return "${stub_logs_rc}"
                     ;;
@@ -198,12 +251,17 @@ main_with() {
                     ;;
             esac
         }
-        sleep() { SECONDS=$((SECONDS + ${1%s})); }
+        sleep() {
+            echo "${1%s}" >>"${stub_sleeps_log}"
+            SECONDS=$((SECONDS + ${1%s}))
+        }
         MONITOR_TIMEOUT=30 main "${CLUSTER}" 2>&1
     )
     stub_rc=$?
     echo "label reads: $(wc -l <"${stub_reads_log}" | tr -d ' ')"
-    rm -f "${stub_reads_log}" "${stub_log_reads_log}"
+    echo "log reads: $(wc -l <"${stub_log_reads_log}" | tr -d ' ')"
+    echo "sleeps: $(paste -sd ' ' - <"${stub_sleeps_log}")"
+    rm -f "${stub_reads_log}" "${stub_log_reads_log}" "${stub_pod_reads_log}" "${stub_sleeps_log}"
     return "${stub_rc}"
 }
 
@@ -317,6 +375,57 @@ check "connection evidence that appears on the next poll passes" "0" "${rc}"
 check "and is reported per worker" "1" \
     "$(grep -cxF "all 4 monitor(s) connected to DCGM and watch 8 GPU(s) each" <<<"${out}")"
 
+# CONNECTED THEN LOST. Every monitor connected, logged its init line, and then
+# lost the host engine: the init line still lists 8 GPUs, and only the lines
+# after it say the connection is gone.
+stub_monitor_log="${CONNECTED_THEN_LOST_LOG}"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor that lost DCGM after connecting fails the gate" "1" "${rc}"
+check "and names every worker that lost it" "1" \
+    "$(grep -cxF "error: 4 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker2 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker3 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker4 (DCGM failure after its latest 'dcgm gpu_id are' line)" <<<"${out}")"
+
+# ONE CLEAN READ IS A SAMPLE, NOT A STATE. Between an init and its first health
+# check the monitor waits one poll interval (15s, the chart's
+# pollIntervalSeconds), so a read in that window looks connected even when the
+# next check fails. The gate re-reads after two polls and passes only if every
+# monitor is the same pod, has not restarted and has not re-initialised.
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+check "a monitor that holds its connection passes" "0" "${rc}"
+check "after waiting two monitor polls" "30" "$(sed -n 's/^sleeps: //p' <<<"${out}")"
+check "and reading every worker's log again" "8" "$(sed -n 's/^log reads: //p' <<<"${out}")"
+# A reconnect loop: each read ends on a clean init line, so no single read
+# shows a failure after it, but every read finds more init lines.
+stub_reconnect_loop=1
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor stuck reconnecting fails the gate" "1" "${rc}"
+check "and is named as re-initialising" "1" \
+    "$(grep -cxF "error: 4 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker (re-initialised DCGM between reads) testcluster-worker2 (re-initialised DCGM between reads) testcluster-worker3 (re-initialised DCGM between reads) testcluster-worker4 (re-initialised DCGM between reads)" <<<"${out}")"
+# A container that crashes and comes back between reads.
+stub_monitor_pods="${ALL_MONITOR_PODS/${MONITOR}-b 0 true/${MONITOR}-b @N@ true}"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor that restarts between reads fails the gate" "1" "${rc}"
+check "and is named as restarted" "1" \
+    "$(grep -cxF "error: 1 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker2 (restarted between reads)" <<<"${out}")"
+# A pod deleted and recreated between reads starts at restartCount 0 again, so
+# only its name shows it is not the monitor that was read.
+stub_monitor_pods="${ALL_MONITOR_PODS/${MONITOR}-c 0 true/${MONITOR}-c@N@ 0 true}"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor pod replaced between reads fails the gate" "1" "${rc}"
+check "and is named as replaced" "1" \
+    "$(grep -cxF "error: 1 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker3 (pod replaced between reads)" <<<"${out}")"
+# A monitor container in CrashLoopBackOff is not Ready, and `kubectl logs`
+# serves its last terminated instance, whose log can end on a clean init.
+stub_monitor_pods="${ALL_MONITOR_PODS/${MONITOR}-d 0 true/${MONITOR}-d 3 false}"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor container that is not Ready fails the gate" "1" "${rc}"
+check "and is named as not ready" "1" \
+    "$(grep -cxF "error: 1 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker4 (monitor container not ready)" <<<"${out}")"
+
 # --- the lane must actually run this, and gate on it -----------------------
 #
 # A guard nobody runs is not a guard. The same reasoning topology-golden_test.sh
@@ -339,8 +448,9 @@ check "conformance is still gated on the topology step" "1" \
 # shows a cancelled step instead of a cause. Past MONITOR_TIMEOUT the script
 # can still sleep one interval and finish the label read it then starts, make
 # the DaemonSet's two reads that a late label still earns, list the monitor
-# pods, read one log per worker, and make the sibling read: five kubectl calls
-# plus one per worker, each of up to KUBECTL_TIMEOUT.
+# pods and read one log per worker, wait MONITOR_CONFIRM_WAIT and list and read
+# them again, and make the sibling read: six kubectl calls plus two per worker,
+# each of up to KUBECTL_TIMEOUT.
 step_timeout_minutes() {
     awk -v id="$1" '
         /^      - name:/ { in_step = 0 }
@@ -348,7 +458,11 @@ step_timeout_minutes() {
         in_step && /^        timeout-minutes:/ { print $2; exit }
     ' "${WORKFLOW}"
 }
-worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + (5 + $(worker_indices | wc -l)) * ${KUBECTL_TIMEOUT%s}))
+# Two of the chart's 15s pollIntervalSeconds (gpu-health-monitor values.yaml:46
+# at v1.25.0): long enough for one health check to follow any init line.
+check "the confirm wait spans two monitor polls" "30" "${MONITOR_CONFIRM_WAIT:-unset}"
+worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + ${MONITOR_CONFIRM_WAIT:-0} +
+    (6 + 2 * $(worker_indices | wc -l)) * ${KUBECTL_TIMEOUT%s}))
 step_minutes="$(step_timeout_minutes gpu_health)"
 check "the step timeout outlives the verifier's worst case of ${worst_case}s" "outlives" \
     "$([[ "${step_minutes}" =~ ^[0-9]+$ ]] && ((step_minutes * 60 > worst_case)) &&
