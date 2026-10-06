@@ -25,7 +25,11 @@ deployCR: true
 
 nfd:
   enabled: false
-  deployNodeFeatureRules: true
+  # The chart's nvidia-nics-rules NodeFeatureRule reads pci.device, which the
+  # nfd component no longer publishes. The same pci-15b3.present label comes
+  # from the nfd-worker rule in components/nfd/values-nvidia-nics*.yaml, which
+  # every overlay that adds network-operator wires into its nfd ref.
+  deployNodeFeatureRules: false
 
 sriovNetworkOperator:
   enabled: false
