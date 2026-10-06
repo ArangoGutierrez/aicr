@@ -48,6 +48,10 @@
 #      the Kind recipe and bundle it for Mokka". Without them the bundle points
 #      every operand at the host driver root that nvkind provides and a Mokka
 #      node does not have.
+#   4. Run install.sh in the bundle's NFD, gpu-operator and DRA driver
+#      folders, in that order, as "Deploy NFD, gpu-operator and the DRA
+#      driver from the bundle" does. The lane installs only those three, not
+#      the whole bundle.
 name: GPU Operator on Mokka (GPU-free)
 
 on:
