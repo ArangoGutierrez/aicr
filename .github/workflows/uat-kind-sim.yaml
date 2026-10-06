@@ -369,8 +369,12 @@ jobs:
       # engine. See the script's header.
       #
       # After topology, so a failure here is attributable to the DCGM hop alone
-      # and not confused with a Topograph problem; before conformance, so the
-      # monitors are proven up before a signed evidence bundle claims them.
+      # and not confused with a Topograph problem; before conformance, because
+      # the lane's policy is that a run which failed a gate emits no signed
+      # evidence. That is policy, not protection of the bundle's content: the
+      # bundle attests only the conformance checks that run here
+      # (gang-scheduling, cluster-autoscaling, slinky-slurm-health), and none
+      # of them reads the monitors.
       #
       # 30 minutes, not the script's 1200s MONITOR_TIMEOUT: the kubectl reads
       # that finish after that deadline, and the 75s re-read that confirms a
