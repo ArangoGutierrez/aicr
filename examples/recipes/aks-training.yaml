@@ -113,6 +113,7 @@ componentRefs:
       - nfd
       - cert-manager
     manifestFiles:
+      - components/network-operator/manifests/nfd-network-rule.yaml
       - components/network-operator/manifests/nic-cluster-policy-aks.yaml
       - components/network-operator/manifests/nvidia-peermem-reloader.yaml
   - name: nfd
