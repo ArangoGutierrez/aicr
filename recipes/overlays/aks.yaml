@@ -186,6 +186,7 @@ spec:
     #
     # RDMA is enabled by default. To opt out at bundle time:
     #   --set networkoperator:enabled=false \
+    #   --set-json 'nfd:worker.config.sources.custom=[]' \
     #   --set gpuoperator:driver.rdma.useHostMofed=false \
     #   --set nodewrightcustomizations:enabled=false
     - name: network-operator
