@@ -199,7 +199,8 @@ check "the CI lane does not drive the nvkind runner" "0" \
 # the slurm kind config, either literally or through a variable the same file
 # assigns. A workflow expression there counts the same way when it is
 # ${{ env.VAR }} and the file assigns VAR, and counts as the slurm cluster
-# when it cannot be resolved from the file, so an expression fails closed.
+# when it cannot be resolved from the file, as does a variable the file
+# assigns an expression, so an expression fails closed in either spelling.
 # A copied bootstrap passes the config through a variable, an inlined
 # create passes the name, and a lane with its own topology and name (the Mokka
 # gpu-operator lane) is not a second copy of this one, even when other lines
@@ -213,12 +214,23 @@ creates_slurm_cluster() {
     awk -v cfg='slurm-cluster-config' -v name="${DEFAULT_CLUSTER_NAME}" '
         function names_slurm(s) { return index(s, cfg) > 0 || index(s, name) > 0 }
         function assigns(line, ref) { return line ~ ("(^|[^A-Za-z0-9_])" ref "(=|:[[:space:]])") }
+        # True when line assigns ref a value whose first word holds a GitHub
+        # expression. Scoped to the value, so an unrelated expression on the
+        # same line (a one-line `VAR=x; kind create cluster --image ${{ ... }}`)
+        # does not count.
+        function assigns_expression(line, ref,    v) {
+            if (!match(line, "(^|[^A-Za-z0-9_])" ref "(=|:[[:space:]])")) return 0
+            v = substr(line, RSTART + RLENGTH)
+            sub(/^[[:space:]]+/, "", v)
+            sub(/[[:space:]].*$/, "", v)
+            return index(v, "${{") > 0
+        }
         # Rewrites each GitHub expression in s: ${{ env.VAR }} becomes ${VAR}
-        # when a line of this file assigns VAR a value with no expression of
-        # its own, and anything else becomes UNRESOLVED, which resolves_slurm
-        # counts as the slurm cluster. Workflow expressions are not shell
-        # variables, so without this a quoted one splits into tokens that name
-        # nothing and the create escapes the check.
+        # when a line of this file assigns VAR, so resolves_slurm judges it
+        # like the $VAR spelling, and anything else becomes UNRESOLVED, which
+        # resolves_slurm counts as the slurm cluster. Workflow expressions are
+        # not shell variables, so without this a quoted one splits into tokens
+        # that name nothing and the create escapes the check.
         function expand_expressions(s,    out, at, rest, end, expr, ref, i, val) {
             out = ""
             while ((at = index(s, "${{")) > 0) {
@@ -232,7 +244,7 @@ creates_slurm_cluster() {
                 if (expr ~ /^env\.[A-Za-z_][A-Za-z0-9_]*$/) {
                     ref = substr(expr, 5)
                     for (i = 1; i <= n; i++)
-                        if (assigns(logical[i], ref) && index(logical[i], "${{") == 0)
+                        if (assigns(logical[i], ref))
                             val = "${" ref "}"
                 }
                 out = out val
@@ -241,8 +253,10 @@ creates_slurm_cluster() {
         }
         # True when s names the slurm cluster literally, or through a $VAR or
         # ${VAR} that a line of this file assigns (shell VAR=, YAML VAR:) to a
-        # value that does, or carries an expression expand_expressions could
-        # not resolve.
+        # value that does or to an expression, or carries an expression
+        # expand_expressions could not resolve. An expression-valued variable
+        # is unresolvable from the file, so it fails closed like the
+        # ${{ env.VAR }} spelling of the same chain.
         function resolves_slurm(s,    rest, ref, i) {
             if (names_slurm(s) || index(s, "UNRESOLVED") > 0) return 1
             rest = s
@@ -250,7 +264,7 @@ creates_slurm_cluster() {
                 ref = substr(rest, RSTART + 1, RLENGTH - 1)
                 sub(/^\{/, "", ref)
                 for (i = 1; i <= n; i++)
-                    if (assigns(logical[i], ref) && names_slurm(logical[i]))
+                    if (assigns(logical[i], ref) && (names_slurm(logical[i]) || assigns_expression(logical[i], ref)))
                         return 1
                 rest = substr(rest, RSTART + RLENGTH)
             }
@@ -299,11 +313,13 @@ check "nothing else creates the slurm cluster" "" "${duplicates}"
 # Both directions of that scoping, on fixtures: a copied bootstrap, a verbatim
 # one, an inlined slurm create by literal or by workflow env (as a shell
 # variable or as ${{ env.VAR }}), and a create whose name is an expression
-# the file cannot resolve are caught; an independent topology (also when it
-# is named and imaged through expressions), a create of kind's default
-# cluster, a slurm create that is only a comment, and an independent create
-# in a file that mentions the slurm cluster elsewhere (including in a
-# variable whose name ends in the create's own) are not.
+# the file cannot resolve, directly, through an unassigned env.VAR, or through
+# a variable assigned an expression, are caught; an independent topology
+# (also when it is named and imaged through expressions, on one line or
+# several), a create of kind's default cluster, a slurm create that is only
+# a comment, and an independent create in a file that mentions the slurm
+# cluster elsewhere (including in a variable whose name ends in the create's
+# own) are not.
 fixture="$(mktemp -d)"
 mkdir -p "${fixture}/workflows"
 # shellcheck disable=SC2016 # the fixture holds the copied script's text, unexpanded
@@ -327,6 +343,19 @@ printf '%s\n' 'env:' '  CLUSTER: ${{ inputs.cluster }}' \
     'run: kind create cluster --name "${{ env.CLUSTER }}" --config /tmp/k.yaml' \
     > "${fixture}/workflows/unresolvable-env.yaml"
 # shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'run: kind create cluster --name "${{ env.NOPE }}" --config /tmp/k.yaml' \
+    > "${fixture}/workflows/unassigned-env.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'env:' '  CLUSTER: ${{ inputs.cluster }}' \
+    'run: kind create cluster --name "$CLUSTER" --config /tmp/k.yaml' \
+    > "${fixture}/workflows/unresolvable-env-var.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'run: CLUSTER=${{ inputs.cluster }}; kind create cluster --name "$CLUSTER" --config /tmp/k.yaml' \
+    > "${fixture}/workflows/unresolvable-shell-var.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
+printf '%s\n' 'run: CLUSTER=aicr-mokka; kind create cluster --name "$CLUSTER" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
+    > "${fixture}/workflows/independent-one-line.yaml"
+# shellcheck disable=SC2016 # the fixture holds the workflow's text, unexpanded
 printf '%s\n' 'env:' '  CLUSTER: aicr-mokka' \
     'run: kind create cluster --name "${{ env.CLUSTER }}" --image "${{ steps.mokka.outputs.node_image }}" --config /tmp/kind-mokka.yaml' \
     > "${fixture}/workflows/independent-expr.yaml"
@@ -347,7 +376,8 @@ check "a copied bootstrap and an inlined slurm create are duplicates; other topo
     "$(printf '%s\n' "${fixture}/bootstrap-cluster-v2.sh" "${fixture}/bootstrap-cluster-copy.sh" \
         "${fixture}/workflows/inline-slurm.yaml" "${fixture}/workflows/inline-slurm-env.yaml" \
         "${fixture}/workflows/inline-slurm-expr.yaml" "${fixture}/workflows/unresolvable-expr.yaml" \
-        "${fixture}/workflows/unresolvable-env.yaml" | sort)" \
+        "${fixture}/workflows/unresolvable-env.yaml" "${fixture}/workflows/unassigned-env.yaml" \
+        "${fixture}/workflows/unresolvable-env-var.yaml" "${fixture}/workflows/unresolvable-shell-var.yaml" | sort)" \
     "$(slurm_cluster_creators "${fixture}" | sort)"
 check "a lost slurm cluster name flags every creator rather than none" \
     "$(grep -rl 'kind create cluster' "${fixture}" | sort)" \
