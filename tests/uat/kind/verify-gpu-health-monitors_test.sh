@@ -180,6 +180,7 @@ stub_defaults() {
     stub_logs_rc=0
     stub_unconnected_log_reads=0
     stub_reconnect_loop=0
+    stub_timed_events=""
 }
 stub_defaults
 
@@ -195,7 +196,9 @@ main_with() {
     local stub_labelled="$1" stub_desired="$2" stub_ready="$3"
     local stub_sibling="$4" stub_sibling_rc="${5:-0}" stub_unlabelled_reads="${6:-0}"
     local stub_reads_log stub_log_reads_log stub_pod_reads_log stub_sleeps_log stub_rc
+    local stub_first_log_read
     stub_reads_log="$(mktemp)"
+    stub_first_log_read="$(mktemp)"
     stub_log_reads_log="$(mktemp)"
     stub_pod_reads_log="$(mktemp)"
     stub_sleeps_log="$(mktemp)"
@@ -243,6 +246,19 @@ main_with() {
                             log_line info "dcgm gpu_id are [0, 1, 2, 3, 4, 5, 6, 7]"
                         done
                     fi
+                    # A virtual clock: the monitor initialised at the first
+                    # log read, and each "<seconds>|<level>|<message>" event
+                    # is in the log once that many seconds of SECONDS have
+                    # passed since. sleep advances SECONDS, so the reads see
+                    # what the monitor would have logged by then.
+                    if [[ -n "${stub_timed_events}" ]]; then
+                        local at level message started
+                        [[ -s "${stub_first_log_read}" ]] || echo "${SECONDS}" >"${stub_first_log_read}"
+                        started="$(<"${stub_first_log_read}")"
+                        while IFS='|' read -r at level message; do
+                            ((SECONDS - started >= at)) && log_line "${level}" "${message}"
+                        done <<<"${stub_timed_events}"
+                    fi
                     return "${stub_logs_rc}"
                     ;;
                 *)
@@ -261,7 +277,8 @@ main_with() {
     echo "label reads: $(wc -l <"${stub_reads_log}" | tr -d ' ')"
     echo "log reads: $(wc -l <"${stub_log_reads_log}" | tr -d ' ')"
     echo "sleeps: $(paste -sd ' ' - <"${stub_sleeps_log}")"
-    rm -f "${stub_reads_log}" "${stub_log_reads_log}" "${stub_pod_reads_log}" "${stub_sleeps_log}"
+    rm -f "${stub_reads_log}" "${stub_log_reads_log}" "${stub_pod_reads_log}" "${stub_sleeps_log}" \
+        "${stub_first_log_read}"
     return "${stub_rc}"
 }
 
@@ -388,12 +405,33 @@ check "and names every worker that lost it" "1" \
 # ONE CLEAN READ IS A SAMPLE, NOT A STATE. Between an init and its first health
 # check the monitor waits one poll interval (15s, the chart's
 # pollIntervalSeconds), so a read in that window looks connected even when the
-# next check fails. The gate re-reads after two polls and passes only if every
-# monitor is the same pod, has not restarted and has not re-initialised.
+# next check fails. The gate re-reads after MONITOR_CONFIRM_WAIT and passes
+# only if every monitor is the same pod, has not restarted, has not
+# re-initialised and still shows no failure after its init line.
 out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
 check "a monitor that holds its connection passes" "0" "${rc}"
-check "after waiting two monitor polls" "30" "$(sed -n 's/^sleeps: //p' <<<"${out}")"
+check "after waiting out a hung first health check" "75" "$(sed -n 's/^sleeps: //p' <<<"${out}")"
 check "and reading every worker's log again" "8" "$(sed -n 's/^log reads: //p' <<<"${out}")"
+# A FIRST HEALTH CHECK THAT HANGS LOGS NOTHING UNTIL THE WATCHDOG FIRES. It
+# starts one 15s poll after init, and the probe watchdog reports it only once
+# its 45s deadline has passed (3 x pollIntervalSeconds, gpu-health-monitor
+# templates/configmap.yaml:27-34 at v1.25.0), on its next 1s tick
+# (dcgm.py:45): 61s after the init line the first read saw. A re-read sooner
+# than that finds the same clean log.
+stub_timed_events="61|error|DCGM probe dcgm_health_check has not returned after 45.4s (deadline 45.0s); treating the DCGM probe as unresponsive"
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor whose first health check hangs fails the gate" "1" "${rc}"
+check "and is named as failing after its init" "1" \
+    "$(grep -cxF "error: 4 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker2 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker3 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker4 (DCGM failure after its latest 'dcgm gpu_id are' line)" <<<"${out}")"
+# A first health check that returns a timeout rather than hanging surfaces
+# sooner, 36s after init here, but still after a 30s re-read.
+stub_timed_events="36|error|DCGM health check timed out: DCGM_ST_TIMEOUT. Indicating connectivity failure."
+out="$(main_with "${ALL_WORKERS}" 4 4 0)"; rc=$?
+stub_defaults
+check "a monitor whose first health check times out fails the gate" "1" "${rc}"
+check "and is named as failing after its init" "1" \
+    "$(grep -cxF "error: 4 of 4 monitor(s) show no DCGM connection with 8 GPU(s) after 30s: testcluster-worker (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker2 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker3 (DCGM failure after its latest 'dcgm gpu_id are' line) testcluster-worker4 (DCGM failure after its latest 'dcgm gpu_id are' line)" <<<"${out}")"
 # A reconnect loop: each read ends on a clean init line, so no single read
 # shows a failure after it, but every read finds more init lines.
 stub_reconnect_loop=1
@@ -458,9 +496,13 @@ step_timeout_minutes() {
         in_step && /^        timeout-minutes:/ { print $2; exit }
     ' "${WORKFLOW}"
 }
-# Two of the chart's 15s pollIntervalSeconds (gpu-health-monitor values.yaml:46
-# at v1.25.0): long enough for one health check to follow any init line.
-check "the confirm wait spans two monitor polls" "30" "${MONITOR_CONFIRM_WAIT:-unset}"
+# The confirm read must land after the latest moment a hung first health check
+# is reported: one 15s poll (gpu-health-monitor values.yaml:46 at v1.25.0),
+# the watchdog's 3 x 15s deadline (templates/configmap.yaml:27-34) and its 1s
+# tick (dcgm.py:45).
+check "the confirm wait outlasts a hung first health check" "outlasts" \
+    "$([[ "${MONITOR_CONFIRM_WAIT:-}" =~ ^[0-9]+$ ]] && ((MONITOR_CONFIRM_WAIT >= 15 + 3 * 15 + 1)) &&
+        echo outlasts || echo "MONITOR_CONFIRM_WAIT=${MONITOR_CONFIRM_WAIT:-unset}")"
 worst_case=$((MONITOR_TIMEOUT + MONITOR_INTERVAL + ${MONITOR_CONFIRM_WAIT:-0} +
     (6 + 2 * $(worker_indices | wc -l)) * ${KUBECTL_TIMEOUT%s}))
 step_minutes="$(step_timeout_minutes gpu_health)"
