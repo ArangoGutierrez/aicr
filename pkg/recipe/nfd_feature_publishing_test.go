@@ -52,6 +52,13 @@ var nfdPubChartRules = []nfdPubChartRule{
 	{component: "k8s-nim-operator-ocp", enablePath: []string{"nfd", "nodeFeatureRules", "deviceID"}, chartDefault: false, feature: "pci.device"},
 }
 
+// nfdPubStripList is the #3038 nfd-master memory fix and must change together
+// with worker.config.core.noPublishFeatures in recipes/components/nfd/values.yaml.
+var nfdPubStripList = []string{
+	"cpu.*", "kernel.config", "kernel.enabledmodule", "kernel.kvm", "kernel.selinux", "kernel.version",
+	"local.*", "memory.*", "network.*", "pci.*", "storage.*", "system.*", "usb.*",
+}
+
 var nfdPubManifestFeatureRe = regexp.MustCompile(`(?m)^\s*(?:-\s*)?feature:\s*["']?([A-Za-z0-9_.]+)["']?\s*$`)
 
 // TestNFDFeaturePublishingContract resolves every shipped leaf and checks, on
@@ -64,11 +71,13 @@ var nfdPubManifestFeatureRe = regexp.MustCompile(`(?m)^\s*(?:-\s*)?feature:\s*["
 //  2. A recipe without network-operator has no such rule, whatever its value:
 //     the GPU Operator validator waits for the network-operator MOFED driver
 //     on labeled nodes when GPUDirect RDMA is on and useHostMofed is false.
+//  3. No NodeFeatureRule the recipe renders (chart-shipped or a manifest)
+//     reads a feature that noPublishFeatures strips.
+//  4. A recipe with nfd strips exactly nfdPubStripList: the nfd-master memory
+//     fix for #3038.
 //
 // A rule label counts with or without the feature.node.kubernetes.io/ prefix,
 // because nfd-master adds that prefix to an un-namespaced label.
-//  3. No NodeFeatureRule the recipe renders (chart-shipped or a manifest)
-//     reads a feature that noPublishFeatures strips.
 func TestNFDFeaturePublishingContract(t *testing.T) {
 	ctx := context.Background()
 	store, err := buildMetadataStore(ctx, defaultEmbeddedProvider)
@@ -123,6 +132,15 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 					t.Errorf("%s has no network-operator but nfd-worker labels %s (%d rules): the GPU Operator validator would wait "+
 						"for a MOFED driver nothing installs", name, nfdPubMellanoxLabel, len(rules))
 				}
+			}
+
+			if hasNFD && !slices.Equal(patterns, nfdPubStripList) {
+				file := "recipes/components/nfd/values.yaml"
+				if ref, _ := findComponentRefByName(result.ComponentRefs, nfdPubNFD); ref.ValuesFile != "" && ref.ValuesFile != "components/nfd/values.yaml" {
+					file += ", or recipes/" + ref.ValuesFile + " if its list replaced it"
+				}
+				t.Errorf("%s: nfd worker.config.core.noPublishFeatures = %q, want %q (nfdPubStripList); change %s",
+					name, patterns, nfdPubStripList, file)
 			}
 
 			if len(patterns) == 0 {
