@@ -36,12 +36,17 @@ source "${SCRIPT_DIR}/setup-gpu-sim.sh"
 
 NVSENTINEL_NAMESPACE="nvsentinel"
 DCGM_VERSION_LABEL="nvsentinel.dgxc.nvidia.com/dcgm.version"
-# The monitor image is comparable in size to the host engine's and is pulled
-# after it, so it gets the same budget for the same reason: a wait that expires
-# on a cold pull fails the lane for being slow rather than wrong. Measured on
-# this hardware, a 905MB image took 338s cold, and the same image took over
-# 16 minutes while another large pull was in flight on the node.
-MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-900}"
+# The monitor image is pulled after the host engine's and is the larger of the
+# two: its linux/amd64 manifest carries 2,699,785,123 bytes of compressed
+# layers (summed from `regctl manifest get` on 2026-10-06). 196MB of that is
+# layers it shares with the host engine image, already on the node, which
+# leaves 2.5GB. At the 2.7MB/s measured for the host engine pull (see
+# DCGM_ROLLOUT_TIMEOUT in setup-gpu-sim.sh) that is some 935s cold, so the
+# host engine's 900s would fail the lane for being slow rather than wrong.
+# 1200s keeps the margin the host engine's budget has over its own cold pull.
+# Measured on this hardware, a 905MB image took 338s cold, and the same image
+# took over 16 minutes while another large pull was in flight on the node.
+MONITOR_TIMEOUT="${MONITOR_TIMEOUT:-1200}"
 MONITOR_INTERVAL=10
 # Two of the chart's 15s pollIntervalSeconds (gpu-health-monitor values.yaml:46
 # at v1.25.0; AICR does not override it). The monitor health-checks one poll
