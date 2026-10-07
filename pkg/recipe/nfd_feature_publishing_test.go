@@ -85,14 +85,19 @@ var nfdPubStripList = []string{
 	"local.*", "memory.*", "network.*", "pci.*", "storage.*", "system.*", "usb.*",
 }
 
-// nfdPubTemplateLineRe matches a line that holds only Helm template actions
-// (control flow, include, end), which nfdPubManifestRuleFeatures drops;
-// nfdPubTemplateActionRe matches any other action, which it replaces with a
-// scalar so the rest of the document still decodes.
+// nfdPubTemplateLineRe matches the Helm template actions that open a line,
+// which nfdPubManifestRuleFeatures drops; nfdPubTemplateActionRe matches any
+// other action, which it replaces with nfdPubTemplatePlaceholder so the rest
+// of the document still decodes. An action ends at its first }}, so literal
+// YAML between two actions is kept.
 var (
-	nfdPubTemplateLineRe   = regexp.MustCompile(`(?m)^[ \t]*(?:\{\{.*?\}\}[ \t]*)+$`)
-	nfdPubTemplateActionRe = regexp.MustCompile(`\{\{.*?\}\}`)
+	nfdPubTemplateLineRe   = regexp.MustCompile(`(?m)^([ \t]*)(?:\{\{(?:[^}]|\}[^}])*\}\}[ \t]*)+`)
+	nfdPubTemplateActionRe = regexp.MustCompile(`\{\{(?:[^}]|\}[^}])*\}\}`)
 )
+
+// nfdPubTemplatePlaceholder is the scalar a mid-line template action becomes.
+// No NFD feature name contains it, so a feature that does was templated.
+const nfdPubTemplatePlaceholder = "AICRTEMPLATEACTION"
 
 // TestNFDFeaturePublishingContract resolves every shipped leaf and checks, on
 // merged effective values:
@@ -277,6 +282,11 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 						t.Errorf("%s: manifest %s does not decode as YAML once its template actions are replaced: %v", name, p, err)
 					}
 					for _, f := range features {
+						if strings.Contains(f, nfdPubTemplatePlaceholder) {
+							t.Errorf("%s: manifest %s has a NodeFeatureRule or NodeFeatureGroup feature set by a template action (%q): "+
+								"the guard cannot see a templated feature; write it literally", name, p, f)
+							continue
+						}
 						if !nfdPubStripped(f, patterns) {
 							continue
 						}
@@ -653,6 +663,30 @@ spec:
     matchFeatures: [{feature: usb.device}]
     {{- end }}
 `, nil, true},
+		{"single-line conditional", `
+kind: NodeFeatureRule
+spec:
+  rules:
+  - name: r
+    matchFeatures:
+    {{ if .Values.ib }}- feature: kernel.config{{ end }}
+`, []string{"kernel.configAICRTEMPLATEACTION"}, false},
+		{"templated feature", `
+kind: NodeFeatureRule
+spec:
+  rules:
+  - name: r
+    matchFeatures:
+    - feature: {{ .Values.f }}
+`, []string{"AICRTEMPLATEACTION"}, false},
+		{"literal feature", `
+kind: NodeFeatureRule
+spec:
+  rules:
+  - name: r
+    matchFeatures:
+    - feature: kernel.config
+`, []string{"kernel.config"}, false},
 		{"does not decode", `
 kind: NodeFeatureRule
 spec:
@@ -1044,13 +1078,14 @@ func nfdPubMatcherFeatures(rule map[string]any) []string {
 
 // nfdPubManifestRuleFeatures lists the features every NodeFeatureRule
 // (spec.rules, types.go:128) and NodeFeatureGroup (spec.featureGroupRules,
-// types.go:152) in a manifest reads. Manifests are Helm templates: a line of
-// actions alone is dropped and any other action becomes a scalar, because a
-// bare scalar on its own line breaks the enclosing mapping. A document that
-// still does not decode is an error.
+// types.go:152) in a manifest reads. Manifests are Helm templates: actions
+// that open a line are dropped and any other action becomes
+// nfdPubTemplatePlaceholder, because a bare scalar on its own line breaks the
+// enclosing mapping and one before a "- " item turns it into a key. A
+// document that still does not decode is an error.
 func nfdPubManifestRuleFeatures(content string) ([]string, error) {
-	content = nfdPubTemplateLineRe.ReplaceAllString(content, "")
-	content = nfdPubTemplateActionRe.ReplaceAllString(content, "tmpl")
+	content = nfdPubTemplateLineRe.ReplaceAllString(content, "$1")
+	content = nfdPubTemplateActionRe.ReplaceAllString(content, nfdPubTemplatePlaceholder)
 	dec := yaml.NewDecoder(strings.NewReader(content))
 	var features []string
 	for {
