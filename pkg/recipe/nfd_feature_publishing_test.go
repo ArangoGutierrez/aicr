@@ -137,6 +137,8 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 		t.Fatalf("buildMetadataStore: %v", err)
 	}
 
+	// The subtests write ran and transitionalUsed without a lock, so they must
+	// not call t.Parallel.
 	leaves, ran := 0, 0
 	transitionalUsed := map[string]bool{}
 	for name, overlay := range store.Overlays {
