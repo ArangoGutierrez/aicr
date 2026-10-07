@@ -21,7 +21,7 @@ a100-aks-ubuntu-training-kubeflow:
   004-network-operator-post/Chart.yaml: 3d8d8a7edf771f558d0d41bbac12ad8fa27dec581cf044fe688eef4f7a03f3d9
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nfd-network-rule.yaml: 0b5b582f1929e728df1b3605c5e365f813b4d386c4b4e057d4648670166f1fa1
+  004-network-operator-post/templates/nfd-network-rule.yaml: b421813faa8a8c3a756e114cfd6758e1c6237b3684078a3481c611cb0d1c72c1
   004-network-operator-post/templates/nic-cluster-policy-aks.yaml: be26f5cb2c0b233794a65ee2caa353f8b473c07ffa2cb12557898c7d9ffd0f1d
   004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
@@ -84,7 +84,7 @@ a100-aks-ubuntu-training-kubeflow:
   README.md: 68c592b5147e46743e2779be54d2483a4a1456f85771bf06f5435c31378c6859
   UPGRADING.md: fb1f8fa08209aae68e35d24a272edd388748cfebc9ba9d978c65ae9de138f6cb
   bundle-info.yaml: 7d5aeba4cd50b67d890874178c71c8e36cd24281e12299febce4580567692ef3
-  checksums.txt: 6b76f2efae52ca6e6e6614ab7829857a62cbac1bd3d0b9c45a866db7d54d187f
+  checksums.txt: 18623f56a8316d903525786b134999d01ac3f46803183d7c60f738099482830b
   deploy.sh: 1d9a37cfa8557472dabe134c1054b471e61ae527733a911e4a4076d52715d7df
   recipe.yaml: 121838203436fa6d4cdfb89e479d31de374c5934c4d0775eea4f0ea76ae760bf
 a100-any:
@@ -365,7 +365,7 @@ aks-ubuntu:
   004-network-operator-post/Chart.yaml: 3d8d8a7edf771f558d0d41bbac12ad8fa27dec581cf044fe688eef4f7a03f3d9
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nfd-network-rule.yaml: 0b5b582f1929e728df1b3605c5e365f813b4d386c4b4e057d4648670166f1fa1
+  004-network-operator-post/templates/nfd-network-rule.yaml: b421813faa8a8c3a756e114cfd6758e1c6237b3684078a3481c611cb0d1c72c1
   004-network-operator-post/templates/nic-cluster-policy-aks.yaml: be26f5cb2c0b233794a65ee2caa353f8b473c07ffa2cb12557898c7d9ffd0f1d
   004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
@@ -414,7 +414,7 @@ aks-ubuntu:
   README.md: be4a99f4c6beb1939f5176e3dfe541c8e16cab81c38b7676a5b3f52e7b7004c2
   UPGRADING.md: fb1f8fa08209aae68e35d24a272edd388748cfebc9ba9d978c65ae9de138f6cb
   bundle-info.yaml: 9a7c14f3d70935470c43fbb8fe7a0cd685b30673b61f3e32c05963233a3fb600
-  checksums.txt: ba89587e8f24926e46cdca9fcc6027c7c77a1fd7231d66606a41556018453d48
+  checksums.txt: 7ae9ce6e015afaba2fd57f19c840fb43a0488e4eb726491ac4d325182c0806cf
   deploy.sh: 43a3f3423a20c9e8cb2cc003ce4e0255e5b3ef0e0d9ebb92a4a145726752a927
   recipe.yaml: 7fe669df3e889eb5b296003daa653c15e83b77bf5747b10e456ae4fd98b13fc8
 b200-any:
@@ -2108,7 +2108,7 @@ h100-aks-ubuntu-inference-dynamo:
   009-network-operator-post/Chart.yaml: 3d8d8a7edf771f558d0d41bbac12ad8fa27dec581cf044fe688eef4f7a03f3d9
   009-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   009-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  009-network-operator-post/templates/nfd-network-rule.yaml: 0b5b582f1929e728df1b3605c5e365f813b4d386c4b4e057d4648670166f1fa1
+  009-network-operator-post/templates/nfd-network-rule.yaml: b421813faa8a8c3a756e114cfd6758e1c6237b3684078a3481c611cb0d1c72c1
   009-network-operator-post/templates/nic-cluster-policy-aks.yaml: be26f5cb2c0b233794a65ee2caa353f8b473c07ffa2cb12557898c7d9ffd0f1d
   009-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   009-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
@@ -2166,7 +2166,7 @@ h100-aks-ubuntu-inference-dynamo:
   README.md: c6ceb665b4c6d05feff9dbd9e39c1299747bab67656372cf76991d1f6e5283e9
   UPGRADING.md: 14985f23270c47c5f8a9768fd56a2da80d450e8ef4efef207ade3766dc4262e1
   bundle-info.yaml: 638835bc6abce9c6824cf99d12ab68e01c1b0e63ef3faf07d46cb7604f9510eb
-  checksums.txt: ac23d320a13afe85c155fac220c2f764619a1403f98797135e94e16474ad5d09
+  checksums.txt: d12559de80ba2597766f508a2d82cc4356912dca5fc91bc0f025a73f85dc115b
   deploy.sh: c4ac141773d250db1ea80114cc91a546e4664fb098ca04de856b8d737888a62c
   recipe.yaml: 46dfc83808c5c4b9d2d6a6907682cfc6d7785286d73c6f7571f2f63317a5aee4
 h100-aks-ubuntu-training-kubeflow:
@@ -2185,7 +2185,7 @@ h100-aks-ubuntu-training-kubeflow:
   004-network-operator-post/Chart.yaml: 3d8d8a7edf771f558d0d41bbac12ad8fa27dec581cf044fe688eef4f7a03f3d9
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nfd-network-rule.yaml: 0b5b582f1929e728df1b3605c5e365f813b4d386c4b4e057d4648670166f1fa1
+  004-network-operator-post/templates/nfd-network-rule.yaml: b421813faa8a8c3a756e114cfd6758e1c6237b3684078a3481c611cb0d1c72c1
   004-network-operator-post/templates/nic-cluster-policy-aks.yaml: be26f5cb2c0b233794a65ee2caa353f8b473c07ffa2cb12557898c7d9ffd0f1d
   004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
@@ -2248,7 +2248,7 @@ h100-aks-ubuntu-training-kubeflow:
   README.md: 5bb5b0a3dbf900b02b8f6f6bd205b69e9ed07294a14720af3fefd0ef0410666c
   UPGRADING.md: fb1f8fa08209aae68e35d24a272edd388748cfebc9ba9d978c65ae9de138f6cb
   bundle-info.yaml: 4f0434d020ecb01db449884aa626813aab4bfca767819e9af94dcc872dd48e3c
-  checksums.txt: c4cf9d6f173670148200580cff2449555d762d1ee255a85bb92fc04c4f98a0de
+  checksums.txt: 08a04be31ade78eb22f3cfbf573228540012dc3708605fafa2e813ee43c09f04
   deploy.sh: 1d9a37cfa8557472dabe134c1054b471e61ae527733a911e4a4076d52715d7df
   recipe.yaml: 40fbc16e6fa9c3601201b3f948fe2d7731f609bb520e3b37a2131b9654dcc673
 h100-aks-ubuntu-training-slurm:
@@ -2267,7 +2267,7 @@ h100-aks-ubuntu-training-slurm:
   004-network-operator-post/Chart.yaml: 3d8d8a7edf771f558d0d41bbac12ad8fa27dec581cf044fe688eef4f7a03f3d9
   004-network-operator-post/cluster-values.yaml: 49f560d440b0b58c4ec35c7f72fc187f23b94a69f5f7135482fa7070310bae26
   004-network-operator-post/install.sh: 95f69b34ff635b03c53c5f2558235ab92b3ef34b1e0db07d4d37c0c94226562f
-  004-network-operator-post/templates/nfd-network-rule.yaml: 0b5b582f1929e728df1b3605c5e365f813b4d386c4b4e057d4648670166f1fa1
+  004-network-operator-post/templates/nfd-network-rule.yaml: b421813faa8a8c3a756e114cfd6758e1c6237b3684078a3481c611cb0d1c72c1
   004-network-operator-post/templates/nic-cluster-policy-aks.yaml: be26f5cb2c0b233794a65ee2caa353f8b473c07ffa2cb12557898c7d9ffd0f1d
   004-network-operator-post/templates/nvidia-peermem-reloader.yaml: f6ae38499c16a1b97aeda3ac77774d4f6352809ee2d2838a7779df97ad1b26be
   004-network-operator-post/values.yaml: 2118eaddf77558f68bfa4830cd2e78bd26758fde227aabbb1f1db9e7e2427331
@@ -2338,7 +2338,7 @@ h100-aks-ubuntu-training-slurm:
   README.md: b245aca349f4683870a21f8ce0fae980ad7280f5a1d2d606a22025e71cafdca6
   UPGRADING.md: fb1f8fa08209aae68e35d24a272edd388748cfebc9ba9d978c65ae9de138f6cb
   bundle-info.yaml: 879e2a95e7c8b6984269fefbcea27c2fae099e5df378bd20dac31fcdb5836a3c
-  checksums.txt: 9c5cd536db4e86919efd6fadc845f6c49abe13d345f7d1bf5c75681f43f104b3
+  checksums.txt: 7f777dcb8a381fac0461deddb41838ff814454264cc927c612c62ffe2a796216
   deploy.sh: c337fdddc870ba97626541a9435e98734c5cbbb9808f2b6da4c8736e0ff75983
   recipe.yaml: 03c25859cd1234f4fb6d0f7fc7c384114f3794d6375a33f7c91c37fd7b7b04ed
 h100-any:

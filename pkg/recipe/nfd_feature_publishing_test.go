@@ -62,8 +62,9 @@ var nfdPubChartRules = []nfdPubChartRule{
 
 // nfdPubTransitional is the expand phase of the #3038 pci-15b3.present
 // handoff: for one release the cluster-side NIC rules ship beside the
-// nfd-worker rule, so the label never drops while nfd-worker rolls, and once a
-// node's worker strips pci.* they match nothing. Each key is a chart rule
+// nfd-worker rule, so the label does not drop while nfd-worker rolls (except
+// under Flux on AKS, docs/user/component-catalog.md), and once a node's worker
+// strips pci.* they match nothing. Each key is a chart rule
 // (component and enable path) or a manifest path; the value is the feature it
 // reads, and a rule is skipped only when both match, on a leaf that ships
 // network-operator. Invariant 8 requires both rules in this release, and an
