@@ -319,7 +319,8 @@ jobs:
           nfd_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nfd' | head -1)
           gpu_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-gpu-operator' | head -1)
           dra_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nvidia-dra-driver-gpu' | head -1)
-          [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ] && [ -n "$dra_dir" ]
+          [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ] && [ -n "$dra_dir" ] \
+            || { echo "::error::bundle lacks a required folder"; exit 1; }
           ( cd "$nfd_dir" && bash install.sh )
           ( cd "$gpu_dir" && bash install.sh )
           ( cd "$dra_dir" && bash install.sh )
