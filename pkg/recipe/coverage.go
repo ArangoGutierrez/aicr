@@ -288,10 +288,9 @@ func (s *MetadataStore) verifyCriteriaCoverage(criteria *Criteria, appliedOverla
 // resolve failure: the human-facing completion clauses, and the structured
 // "uncovered" entries keyed by dimension.
 //
-// Extracted so it is not the private property of verifyCriteriaCoverage. More
-// than one guard can be true of a single resolve: when snapshot constraint
-// filtering removes the only overlay covering a stated dimension AND that
-// overlay declared the profile, both the coverage post-condition and
+// More than one guard can be true of a single resolve: when snapshot
+// constraint filtering removes the only overlay covering a stated dimension
+// AND that overlay declared the profile, both the coverage post-condition and
 // ensureProfileDeclarationSurvived fire. Only the first to return reaches the
 // caller, so both must carry this attribution or the surviving error reports
 // the failure with an empty dimension list and pkg/client/v1 cannot tell a
