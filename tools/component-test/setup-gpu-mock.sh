@@ -64,14 +64,20 @@ MANIFEST_FILE="${SCRIPT_DIR}/manifests/nvml-mock.yaml"
 # pulls by digest, and the version stays readable in the pod spec.
 NVML_MOCK_IMAGE_TAG="${NVML_MOCK_VERSION}${NVML_MOCK_IMAGE_DIGEST:+@${NVML_MOCK_IMAGE_DIGEST}}"
 
-# Map GPU profile to driver version (matches nvml-mock Helm chart defaults)
+# Map GPU profile to the driver version the pinned chart reports for it
+# (system.driver_version in its profiles/<name>.yaml). Revisit on a chart bump.
 profile_to_driver_version() {
     case "$1" in
-        a100|l40s|t4) echo "550.163.01" ;;
-        h100|b200|gb200) echo "570.86.16" ;;
+        a100|h100|l40s|t4) echo "550.163.01" ;;
+        b200) echo "560.35.03" ;;
+        gb200) echo "580.65.06" ;;
+        gb300) echo "570.124.06" ;;
         *) echo "550.163.01" ;;
     esac
 }
+# Only a requested version is forwarded to Helm; unset leaves the chart's
+# profile default, which the mapping above mirrors for the log and the fallback.
+DRIVER_VERSION_OVERRIDE="${DRIVER_VERSION:-}"
 DRIVER_VERSION="${DRIVER_VERSION:-$(profile_to_driver_version "$GPU_PROFILE")}"
 
 log_info "Setting up GPU mock: profile=${GPU_PROFILE}, count=${GPU_COUNT}, driver=${DRIVER_VERSION}"
@@ -173,6 +179,10 @@ deploy_via_helm() {
     else
         version_args=(--version "$NVML_MOCK_CHART_VERSION")
     fi
+    local -a driver_args=()
+    if [[ -n "$DRIVER_VERSION_OVERRIDE" ]]; then
+        driver_args=(--set driverVersion="$DRIVER_VERSION_OVERRIDE")
+    fi
     log_info "Attempting Helm install from: ${chart_ref} (version ${NVML_MOCK_CHART_VERSION})"
 
     local helm_err
@@ -184,6 +194,7 @@ deploy_via_helm() {
         --set gpu.count="$GPU_COUNT" \
         --set image.repository="$NVML_MOCK_IMAGE" \
         --set image.tag="$NVML_MOCK_IMAGE_TAG" \
+        ${driver_args[@]+"${driver_args[@]}"} \
         --wait --timeout "$MOCK_READY_TIMEOUT" 2>"$helm_err"; then
         rm -f "$helm_err"
         return 0
