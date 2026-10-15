@@ -39,9 +39,12 @@ exclude:
 # carries the structured status + justification + per-CVE
 # reachability evidence and is self-sufficient for suppression.
 # The image builds on python:3.13-slim (Debian trixie) and ships on
-# nvcr.io/nvidia/distroless/python:3.13-v4.1.5. The only suppressed finding
-# is CVE-2026-82049 on that base's CPython 3.13.15, which no 3.13 release
-# fixes yet. Other base-package findings are answered by bumping this pin: the
+# nvcr.io/nvidia/distroless/python:3.13-v4.1.7, whose CPython 3.13.16 fixes
+# CVE-2026-82049, so the one statement left in `.openvex.json` no longer
+# matches anything; the skill's vex-state.yaml records why it stays.
+# Base-package findings are answered by bumping this pin: the v4.1.7 bump
+# (from v4.1.5) moved CPython 3.13.15 -> 3.13.16, clearing CVE-2026-19445
+# (Critical) and CVE-2026-19553 (High) along with CVE-2026-82049; the
 # v4.1.5 bump (from v4.1.4) moved openssl 3.5.7-1~deb13u2 -> u3, clearing
 # 8 HIGH rows (4 CVEs on libssl3t64 and openssl-provider-fips); the
 # v4.1.4 bump (from v4.1.2) moved glibc 2.41-12+deb13u3 -> u4 and
@@ -53,10 +56,9 @@ exclude:
 #
 # When scanning the aiperf-bench image locally, pass `--vex
 # .openvex.json` alongside `-c .grype.yaml`. Scans of the AICR Go
-# source tree (`make scan` → `grype dir:.`) don't need VEX since the
-# suppressed CVE is in the image's CPython interpreter and never
-# surfaces against Go source.
-# Reviewed: 2026-10-05
+# source tree (`make scan` → `grype dir:.`) don't need VEX since its
+# statements name only the aiperf-bench image and never match Go source.
+# Reviewed: 2026-10-15
 
 # Go-source suppressions (accepted risk, not "not affected").
 #

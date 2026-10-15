@@ -59,31 +59,52 @@
 # A post-merge check belongs here rather than only in a PR description, because
 # the skill reads this file and does not read PR descriptions. A check recorded
 # only in a PR is a check nobody runs.
-deferred_verifications: []
+deferred_verifications:
+  - id: distroless-python-3.13-v4.1.7-scans-clean
+    opened: 2026-10-15
+    check: >-
+      The 2026-10-15 weekly scan (run 38690982469) reported aiperf-bench at
+      1 critical, 1 high and 1 VEX-suppressed row: CVE-2026-19445 and
+      CVE-2026-19553 on the CPython 3.13.15 of the 3.13-v4.1.5 runtime base,
+      plus the suppressed CVE-2026-82049. The base was bumped to 3.13-v4.1.7,
+      which ships CPython 3.13.16. Read the aiperf-bench scan-result artifact
+      of the first `Weekly Image Vulnerability Scan` run on main after that
+      bump merged, and the `anchore-image-aiperf-bench-amd64` and `-arm64`
+      Image Vuln Scan jobs of the first On Tag Release run cut from a commit
+      carrying it.
+    resolves_when: >-
+      that weekly run's aiperf-bench line reports 0 critical, 0 high and
+      0 VEX-suppressed rows, and both of that release run's aiperf-bench
+      Image Vuln Scan jobs pass
+    caveat: >-
+      Measured on local rebuilds of the branch for linux/amd64 and
+      linux/arm64 with grype 0.114.0 (CI pins v0.118.0 through scan-action
+      v7.4.2) against the grype DB built 2026-10-15T06:30Z, `--only-fixed -c
+      .grype.yaml --vex .openvex.json`: 0 HIGH+, 0 VEX-applied rows and
+      2 Medium on each arch. A newer DB or grype in CI can add findings this
+      run could not see; triage those as new, not as a regression of the bump.
 
-known_negatives:
-  - id: no-fixed-cpython-3.13-for-cve-2026-82049
-    checked: 2026-10-05
-    finding: >-
-      CVE-2026-82049 (tarfile extraction filters) cannot be remediated by any
-      bump available to this image. 3.13.15 is the newest CPython 3.13 release
-      (2026-08-05); the advisory published 2026-09-14 and the 3.13 backport
-      landed after that release, so grype records the sole fixed version as
-      `3.14.0b1` -- which is why `--only-fixed` does not withhold it.
-      nvcr.io/nvidia/distroless/python publishes a 3.14-v4.1.5 tag, but aiperf
-      0.13.0 still declares `Requires-Python: <3.14,>=3.11`, so building the
-      venv on 3.14 fails pip resolution instead of producing a fixed image.
-    also: >-
-      The finding is on the base image's interpreter (pkg:generic/python@3.13.15
-      at /usr/local/bin/python), not a pip package, so no requirements.txt change
-      can touch it either. Do not re-derive this by bumping the distroless pin:
-      3.13-v4.1.5 is the newest 3.13 tag and still ships CPython 3.13.15.
-    invalidated_by: >-
-      a CPython 3.13.16+ release carrying the backport (then bump the distroless
-      3.13 pin and delete the statement), or an aiperf release whose
-      Requires-Python admits 3.14 (then the 3.14 base becomes reachable, #1910)
+known_negatives: []
 
 deliberate_exclusions:
+  - id: stale-cve-2026-82049-statement-kept-for-the-guard
+    decided: 2026-10-15
+    decision: >-
+      The CVE-2026-82049 statement stays in .openvex.json although nothing
+      matches it any more: the 3.13-v4.1.7 runtime base ships CPython 3.13.16,
+      which carries the fix, so the stale audit classes it "gone entirely" and
+      would delete it. It is the document's only statement. Deleting it leaves
+      `statements: []`, which openvex-guard.sh rejects in source mode (an empty
+      committed document reads as truncation), and the "the committed
+      .openvex.json is valid" subtest of TestReleaseOpenVEXValidation fails on
+      it. Its description still cites the 3.13-v4.1.5 base and says no bump
+      reaches a fix, and every release signs it onto the aiperf-bench VEX
+      projection, so settle this before the next release tag.
+    invalidated_by: >-
+      openvex-guard.sh admitting an empty source document, or a new statement
+      landing in .openvex.json; either way, delete this statement in that same
+      edit and bump the document version
+
   - id: libexpat1-wont-fix-highs
     decided: 2026-08-27
     rechecked: 2026-09-17
