@@ -60,30 +60,6 @@
 # the skill reads this file and does not read PR descriptions. A check recorded
 # only in a PR is a check nobody runs.
 deferred_verifications:
-  - id: aiperf-bench-on-cpython-3.13.16-scans-clean
-    opened: 2026-10-15
-    document_version: 20
-    why_deferred: >-
-      The weekly scan reads the image CI builds from main, so the base bump to
-      nvcr.io/nvidia/distroless/python:3.13-v4.1.7 is only measured once it has
-      merged. Local evidence is weaker than it looks: a linux/amd64 rebuild of
-      the Dockerfile plus a scan of the new base on both architectures, not the
-      bytes CI builds, and the arm64 aiperf-bench leg was never rebuilt.
-    check: >-
-      The first Weekly Image Vulnerability Scan run on a main head containing
-      document version 20 reports `aiperf-bench: 0 critical, 0 high` with
-      `(0 VEX-suppressed)`, and no python CVE-2026-19445, CVE-2026-19553 or
-      CVE-2026-82049 match in that run's aiperf-bench JSON.
-    how: |
-      gh workflow run "Weekly Image Vulnerability Scan" --repo NVIDIA/aicr --ref main
-      gh run download <run-id> -R NVIDIA/aicr -p 'scan-*' -D <dir>
-      grep -h '^aiperf-bench:' <dir>/scan-*/*.txt
-    resolves_when: >-
-      the command above has been run against THE FIRST scan run whose head
-      contains document version 20 AND it reported 0 critical / 0 high / 0
-      VEX-suppressed for aiperf-bench. A later green run does not discharge an
-      unexamined first one, and any HIGH+ it reports is the finding to triage.
-
   - id: empty-source-openvex-releases
     opened: 2026-10-15
     document_version: 20
