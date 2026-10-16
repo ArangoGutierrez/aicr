@@ -474,6 +474,10 @@ jobs:
           echo "${PWD}" >> "$GITHUB_PATH"
       - name: Run actionlint
         run: actionlint -color -shellcheck=
+      # Also runs from go-lint, but qualification skips Markdown-only changes,
+      # and .github/actions/README.md carries the runs-on examples people copy.
+      - name: Reject floating runner labels
+        run: ./tools/check-runner-labels
 
   actionlint-skip:
     needs: [check-paths]
