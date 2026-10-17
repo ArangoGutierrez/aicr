@@ -2978,13 +2978,14 @@ Raw manifests (manifest-only components and mixed-component `-post` folders) are
 
 When using `--deployer flux` with OCI output (`--output oci://...`), AICR generates ArtifactGenerator and ExternalArtifact CRs instead of GitRepository sources for local-chart components. This allows Flux to reconcile HelmReleases directly from OCI artifacts without a Git repository.
 
-**Prerequisites (Flux v2.8+):**
+**Prerequisites (Flux v2.7+):**
 
 - **source-watcher controller** must be deployed (`source.extensions.fluxcd.io`). This controller watches ArtifactGenerator CRs and creates ExternalArtifact objects.
 - **ExternalArtifact=true feature gate** must be enabled on helm-controller. This allows HelmRelease CRs to reference ExternalArtifact objects via `spec.chartRef`.
-- **helm-controller v1.5.0 or later**, which Flux v2.8.0 ships. The [`network-operator` upgrade note](component-catalog.md) relies on its `spec.upgrade.serverSideApply` field.
 
-Without these prerequisites, bundles generate successfully but HelmReleases will not reconcile at deploy time.
+Without both prerequisites, bundles generate successfully but HelmReleases will not reconcile at deploy time.
+
+**Flux version for the `network-operator` migration (git and OCI bundles):** the one-time patch in the [`network-operator` upgrade note](component-catalog.md#network-operator-network-operator-ocp-and-nfd-ocp-fabric-crs-are-no-longer-helm-hooks-flux-only) needs Flux v2.8+, because it sets `spec.upgrade.serverSideApply`, a field that exists from helm-controller v1.5.0 (shipped by Flux v2.8.0) and that the helm-controller v1.4.0 in Flux v2.7 rejects. It applies to Flux bundles of either output type, and only to a cluster upgrading from a bundle generated before that change whose release was first installed client-side. AICR does not emit the field, so generating and reconciling a bundle does not depend on it.
 
 **Configuration flags:**
 
