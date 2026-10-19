@@ -37,6 +37,7 @@ import (
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer"
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer/argocd"
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer/argocdhelm"
+	"github.com/NVIDIA/aicr/pkg/bundler/deployer/fleet"
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer/flux"
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer/helm"
 	"github.com/NVIDIA/aicr/pkg/bundler/deployer/helmfile"
@@ -810,8 +811,9 @@ func (b *DefaultBundler) buildDeployer(ctx context.Context, recipeResult *recipe
 	//     Job completes.
 	//   - terraform: the gate is the last helm_release in the component's
 	//     module call, and the provider blocks on the hook as helm does.
-	// Flux and helmfile wrap each folder in HelmRelease / needs semantics that
-	// need dedicated gating wiring (not yet implemented). Fail clearly rather
+	// Flux, helmfile and fleet wrap each folder in HelmRelease / needs /
+	// dependsOn semantics that need dedicated gating wiring (not yet
+	// implemented). Fail clearly rather
 	// than silently dropping the opt-in flag and shipping a bundle without the
 	// readiness gate the user asked for. See #904.
 	if b.Config.ReadinessHooks() {
@@ -823,7 +825,7 @@ func (b *DefaultBundler) buildDeployer(ctx context.Context, recipeResult *recipe
 			// module; the gate Job is a helm hook, so that release does not
 			// apply until the Job COMPLETES, and a dependent's depends_on
 			// on the module call waits for it.
-		case config.DeployerFlux, config.DeployerHelmfile:
+		case config.DeployerFlux, config.DeployerHelmfile, config.DeployerFleet:
 			return nil, errors.New(errors.ErrCodeInvalidRequest,
 				fmt.Sprintf("--readiness-hooks is not supported with --deployer %q; supported deployers: helm, argocd, argocd-helm, terraform",
 					b.Config.Deployer()))
@@ -1015,6 +1017,34 @@ func (b *DefaultBundler) buildDeployer(ctx context.Context, recipeResult *recipe
 			Serial:                 b.Config.Serial(),
 		}, nil
 
+	case config.DeployerFleet:
+		componentPreManifests, err := b.collectComponentPreManifests(ctx, recipeResult)
+		if err != nil {
+			return nil, errors.PropagateOrWrap(err, errors.ErrCodeInternal,
+				"failed to collect component pre-manifests")
+		}
+		componentPostManifests, err := b.collectComponentManifests(ctx, recipeResult)
+		if err != nil {
+			return nil, errors.PropagateOrWrap(err, errors.ErrCodeInternal,
+				"failed to collect component post-manifests")
+		}
+		return &fleet.Generator{
+			RecipeResult:           recipeResult,
+			ComponentValues:        componentValues,
+			Version:                b.Config.Version(),
+			AppName:                b.Config.AppName(),
+			Namespace:              b.Config.FleetNamespace(),
+			Mode:                   b.Config.FleetMode(),
+			RepoURL:                b.Config.RepoURL(),
+			TargetRevision:         b.Config.TargetRevision(),
+			IncludeChecksums:       false,
+			ComponentPreManifests:  componentPreManifests,
+			ComponentPostManifests: componentPostManifests,
+			DataFiles:              dataFiles,
+			DynamicValues:          dynamicValues,
+			VendorCharts:           b.Config.VendorCharts(),
+			UpgradeNotice:          upgradeNotice,
+		}, nil
 	case config.DeployerTerraform:
 		return b.terraformDeployer(ctx, recipeResult, componentValues, dynamicValues, dataFiles, upgradeNotice)
 
@@ -1233,6 +1263,8 @@ func deployerResultNames(dt config.DeployerType, terraformChildModule bool) (typ
 		return "flux-manifests", "Flux manifests"
 	case config.DeployerHelmfile:
 		return "helmfile-bundle", "Helmfile release graph"
+	case config.DeployerFleet:
+		return "fleet-bundle", "Rancher Fleet bundle"
 	case config.DeployerTerraform:
 		if terraformChildModule {
 			return "terraform-bundle", "Terraform child module"
@@ -3375,7 +3407,7 @@ const gkeCriticalPriorityQuotaPodsPerNode = 32
 
 // gkeCriticalPriorityQuotaName is the metadata.name of the synthesized
 // ResourceQuota. Stable across runs so idempotent re-apply by the
-// deployer (helmfile / argocd / flux) updates the existing object
+// deployer (helmfile / argocd / flux / fleet) updates the existing object
 // rather than creating duplicates.
 const gkeCriticalPriorityQuotaName = "aicr-gke-critical-pods"
 

@@ -1404,11 +1404,11 @@ kubectl get crd aibomcontrollerconfigs.aibom.k8saibom.dev \
 `k8s-aibom` is marked `ownsCRDs` in the registry, so most deployers update its
 CRDs for you: Flux through `spec.upgrade.crds: CreateReplace`, `helm` through
 the generated `apply-crds.sh`, and Argo CD by applying them as ordinary
-manifests each sync. `helmfile` and `terraform` have no equivalent automation — see
+manifests each sync. `helmfile`, `terraform` and `fleet` have no equivalent automation — see
 [Upgrade, uninstall, and troubleshooting](#upgrade-uninstall-and-troubleshooting)
 for the manual step. Whether a given bump needs that step depends on whether
 the upgrade uses anything the new schema adds: a v1.3.0 to v1.5.1 bump on
-default values upgrades cleanly on `helmfile` and `terraform` against the old CRDs, but the
+default values upgrades cleanly on `helmfile`, `terraform` and `fleet` against the old CRDs, but the
 same bump setting `config.verification` aborts the release with
 `.spec.verification: field not declared in schema` after the Deployment has
 already advanced. When in doubt, apply the CRDs first; it is never harmful.
@@ -1423,10 +1423,10 @@ below — therefore upgrades the controller with **no** CRD update on those two
 deployers, silently. Such a recipe needs its own audit of the chart it points
 at and its own CRD step; the fallback command below is the manual form. Argo CD
 is unaffected, since it applies whatever CRDs the rendered chart contains
-regardless of provenance. `helmfile` and `terraform` are also unaffected by
-this particular caveat, in the sense that there is nothing to disable: neither
-acts on `ownsCRDs`, checked or not, so no version override can take their
-automation away. Whether a given bump actually needs the manual step is a separate
+regardless of provenance. `helmfile`, `terraform` and `fleet` are also unaffected
+by this particular caveat, in the sense that there is nothing to disable: none
+of them acts on `ownsCRDs`, checked or not, so no version override can take
+their automation away. Whether a given bump actually needs the manual step is a separate
 question, answered per transition by the upgrade record.
 The assertion is still worth making on every deployer, because it proves the
 deployed CRDs match the pinned chart rather than merely that some deployer was
@@ -1550,7 +1550,7 @@ image: chart, CRDs, status API, and image are one qualified set. Quiesce
 configuration changes during rollback and confirm that
 `AIBOMControllerConfig/default` returns to a current `Ready=True` state.
 
-**CRDs are applied for you on every deployer except `helmfile` and `terraform`.** The chart
+**CRDs are applied for you on every deployer except `helmfile`, `terraform` and `fleet`.** The chart
 ships its CRDs under `crds/`. Helm installs that directory on first install and
 never touches it again on upgrade, so a chart bump whose CRDs changed would
 leave the previous schema in place and the API server would silently prune the
@@ -1559,17 +1559,19 @@ new controller's writes to added fields.
 Every other deployer closes that on its own, by a different route; see the
 deployer table below. `helm` bundles carry an `apply-crds.sh` in the
 component's folder, run automatically before the upgrade; `flux` and Argo CD
-apply the CRDs through their own controllers. `helmfile` and `terraform` have
-no automated equivalent: the manual command below is always required for their
+apply the CRDs through their own controllers. `helmfile`, `terraform` and
+`fleet` have no automated equivalent: the manual command below is always required for their
 `ownsCRDs` components.
 
 When you run the command below depends on your deployer, because only some of
 them do it for you:
 
-- **`helmfile` and `terraform`: always, including from a generated bundle.**
+- **`helmfile`, `terraform` and `fleet`: always, including from a generated bundle.**
   Nothing runs it for you on these deployers, so it is a required step before
   every `ownsCRDs` upgrade, not a fallback. Under `terraform`, run it before
-  the `terraform apply` of the regenerated bundle.
+  the `terraform apply` of the regenerated bundle. Under `fleet`, run it
+  against every downstream cluster the bundle targets before applying the
+  regenerated bundle.
 - **`helm`: only** when you are upgrading outside a generated bundle, or when
   the bundle's `apply-crds.sh` failed and you are reproducing it by hand.
 - **`flux`, `argocd`, `argocd-helm`: not needed.** Their controllers apply the
@@ -1674,7 +1676,7 @@ Four details are load-bearing, and the obvious shorter forms fail on them:
   chart whose `crds/` is empty or moved runs the loop zero times and exits 0.
   Either way you would proceed to upgrade the controller against a stale or
   partial schema — the exact failure this command exists to prevent, and it
-  matters most on `helmfile` and `terraform`, where nothing else covers it.
+  matters most on `helmfile`, `terraform` and `fleet`, where nothing else covers it.
 
 The generated `apply-crds.sh` does exactly this, with each call bounded; it is
 the reference if you need the details.
@@ -1688,9 +1690,10 @@ Which deployers need that step differs, so check yours:
 | `terraform` | Upgrades through Helm (`helm_release`), so it skips `crds/` too; the bundle emits no CRD step, because the provider has no CRD-upgrade option and a `local-exec` step would run outside the plan; run the manual command with `MANAGER=terraform-provider-helm`, the manager the provider installed the CRDs under | Assume yes — see note below |
 | `flux` | The generated `HelmRelease` sets `spec.upgrade.crds: CreateReplace` for components the registry marks `ownsCRDs`, and leaves the helm-controller `Skip` default in place for the rest | Only for components without `ownsCRDs` |
 | `argocd`, `argocd-helm` | Argo CD renders the chart with CRDs included and applies them as ordinary manifests each sync | No |
+| `fleet` | Fleet's agent upgrades through Helm, so it skips `crds/` too, and a Fleet bundle cannot run `apply-crds.sh`; the bundle README and deployment notes name the `ownsCRDs` components instead; run the manual command with `MANAGER` set to the manager the managed-fields check reports for the installed CRDs | Assume yes — see note below |
 
-**On the `helmfile` and `terraform` "assume yes".** Neither deployer ever
-updates CRDs for you, so the deployer itself can never narrow the step — that much is unconditional. Whether
+**On the `helmfile`, `terraform` and `fleet` "assume yes".** None of these
+deployers ever updates CRDs for you, so the deployer itself can never narrow the step — that much is unconditional. Whether
 a *particular* version bump actually needs it is a different question, and the
 only thing that can answer it is the component's ADR-021 upgrade record for
 that transition. Some transitions genuinely do not need it: the k8s-aibom
@@ -1727,8 +1730,10 @@ CI. `nvsentinel` excludes the Percona CRDs its `mongodb-store` subchart embeds
 Uninstall in this order. Removing the component from the overlay and applying a
 regenerated bundle does **not** remove the previously installed release: the
 `helm` and `helmfile` deployers install releases by name, and a release the new
-bundle no longer mentions is simply left alone (`terraform` is the exception:
-the release is in state, so applying the regenerated bundle uninstalls it). Skipping the explicit uninstall
+bundle no longer mentions is simply left alone. `terraform` and Fleet in
+`gitrepo` mode are the exceptions: Terraform holds the release in state and
+Fleet deletes a Bundle its repository no longer produces, so applying the
+regenerated bundle uninstalls the release, and step 2 relies on that. Skipping the explicit uninstall
 leaves the controller running while the next step deletes the CRs and CRDs
 underneath it, so it reconciles against resources that are disappearing.
 
@@ -1744,7 +1749,30 @@ underneath it, so it reconciles against resources that are disappearing.
 
    For Argo CD, delete the owning `Application`; for Flux, the `HelmRelease`;
    under Terraform, `terraform apply` of the regenerated bundle already removed it.
-   Confirm the controller Deployment is gone before continuing.
+
+   For Fleet, do not `helm uninstall` the release: Fleet still declares it and
+   reinstalls it on the next reconcile. Remove it from Fleet instead, and leave
+   the rest of the bundle in place:
+
+   - `--fleet-mode gitrepo`: push the regenerated bundle from step 1 and apply
+     its `gitrepo.yaml`. Fleet deletes the Bundle the repository no longer
+     produces (`<app-name>-k8s-aibom`), and the agent uninstalls its release on
+     every targeted cluster.
+   - `--fleet-mode helmop`: `kubectl apply` never deletes, so apply the
+     regenerated `helmops.yaml` first (it re-points the next component's
+     `dependsOn`), then delete only the removed HelmOp on the management
+     cluster:
+
+     ```bash
+     # FLEET_NAMESPACE and APP_NAME are the bundle's --fleet-namespace and --app-name.
+     kubectl delete helmops.fleet.cattle.io -n "$FLEET_NAMESPACE" "$APP_NAME-k8s-aibom"
+     ```
+
+   Do not delete the `GitRepo` or run `kubectl delete -f helmops.yaml`; either
+   uninstalls every release in the bundle.
+
+   Confirm the controller Deployment is gone before continuing; for Fleet,
+   check each downstream cluster the bundle targets.
 
    **Do not use `helmfile destroy` for this.** It tears down *every* release in
    the bundle in reverse dependency order, not just this component. It is also

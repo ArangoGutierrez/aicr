@@ -57,24 +57,24 @@ transitions:
     summary: >-
       The CRD change is additive only, and with the verification block unset
       (the value AICR ships) a plain chart bump against stale v1.3.0 CRDs
-      upgrades cleanly on every deployer, helmfile and terraform included. Setting
-      config.verification is what breaks the upgrade: the field does not
-      exist in the v1.3.0 schema, so helm fails while building the
-      server-side-apply patch for the AIBOMControllerConfig and aborts the
-      release. The value is not silently pruned, but the abort lands after
-      the Deployment has already rolled to the v1.5.1 image, leaving a
-      release marked failed partway through. helmfile and terraform have no
-      automated CRD-update path, so on those two the CRDs have to be
-      applied by hand first. The chart's rendered AIBOMControllerConfig CR
-      also moves from v1alpha1 to v1beta1, but both stay served, so that is
-      a template change rather than an API break.
+      upgrades cleanly on every deployer, helmfile, terraform and fleet
+      included. Setting config.verification is what breaks the upgrade: the
+      field does not exist in the v1.3.0 schema, so helm fails while building
+      the server-side-apply patch for the AIBOMControllerConfig and aborts the
+      release. The value is not silently pruned, but the abort lands after the
+      Deployment has already rolled to the v1.5.1 image, leaving a release
+      marked failed partway through. helmfile, terraform and fleet have no
+      automated CRD-update path, so on those three the CRDs have to be applied
+      by hand first. The chart's rendered AIBOMControllerConfig CR also moves
+      from v1alpha1 to v1beta1, but both stay served, so that is a template
+      change rather than an API break.
     reversible: false
     affectedResources:
       - group: aibom.k8saibom.dev
         kinds:
           - AIBOMControllerConfig
     stepsByDeployer:
-      - deployers: [helmfile, terraform]
+      - deployers: [helmfile, terraform, fleet]
         steps:
           - id: apply-new-crds
             description: >-
@@ -84,12 +84,15 @@ transitions:
               CRD-apply command under "Upgrade, uninstall, and
               troubleshooting" in docs/user/component-catalog.md, with
               CHART=oci://ghcr.io/googlecloudplatform/charts/k8s-aibom,
-              VERSION=1.5.1 and MANAGER=helm under helmfile or
-              MANAGER=terraform-provider-helm under terraform.
+              VERSION=1.5.1 and MANAGER=helm under helmfile,
+              MANAGER=terraform-provider-helm under terraform, and under
+              fleet the manager that section's managed-fields check reports
+              for the installed CRDs.
             reason: >-
-              helmfile and terraform have no automated equivalent for
-              ownsCRDs components; they are the deployers that never update
-              them for you.
+              helmfile, terraform and fleet have no automated equivalent
+              for ownsCRDs components; they are the deployers that never
+              update them for you (Fleet's Helm upgrade skips crds/, like
+              plain Helm).
               Measured on GKE: against stale v1.3.0 CRDs, setting
               config.verification aborts the release with
               ".spec.verification: field not declared in schema" once the

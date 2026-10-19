@@ -124,6 +124,11 @@ func TestAttributeRecord(t *testing.T) {
 			want:   "cert-manager", wantKind: matchPrimary,
 		},
 		{
+			name: "fleet shares the helm transform", deployer: DeployerFleet, comps: comps,
+			record: helmRec("cert-manager", "cert-manager-system", "deployed", "1.20.2", nil),
+			want:   "cert-manager", wantKind: matchPrimary,
+		},
+		{
 			name: "terraform shares the helm transform", deployer: DeployerTerraform, comps: comps,
 			record: helmRec("cert-manager", "cert-manager-system", "deployed", "1.20.2", nil),
 			want:   "cert-manager", wantKind: matchPrimary,
@@ -1338,7 +1343,7 @@ func TestReadRunsOnlyTheDeployersReader(t *testing.T) {
 	}
 	comps := []Component{fixtureGPUOperator}
 
-	for _, d := range []Deployer{DeployerHelm, DeployerHelmfile, DeployerTerraform, DeployerFlux} {
+	for _, d := range []Deployer{DeployerHelm, DeployerHelmfile, DeployerTerraform, DeployerFlux, DeployerFleet} {
 		t.Run(string(d), func(t *testing.T) {
 			dyn := argoClient()
 			dyn.PrependReactor("list", "applications", deny)

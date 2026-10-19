@@ -162,8 +162,8 @@ func TestMake_DRAIntegration_GeneratedArtifactParity(t *testing.T) {
 }
 
 // TestMake_DRAIntegration_AllDeployersCarryDerivedValues extends parity
-// coverage to all six supported deployers: Helm, helmfile, Flux,
-// Argo CD, argocd-helm and Terraform. Each deployer renders the
+// coverage to every supported deployer (allDeployerCases), including both
+// Fleet modes. Each deployer renders the
 // shared componentValues map differently (values.yaml under a numbered
 // subdir for Helm, helmfile and Terraform; configmap-values.yaml for
 // Flux; embedded in Application source for the Argo CD variants), so a
@@ -185,22 +185,11 @@ func TestMake_DRAIntegration_AllDeployersCarryDerivedValues(t *testing.T) {
 		expectedAnnotation = "aicr.run/gpu-operator-chart-version"
 	)
 
-	deployers := []struct {
-		name     string
-		deployer config.DeployerType
-	}{
-		{name: "helm", deployer: config.DeployerHelm},
-		{name: "helmfile", deployer: config.DeployerHelmfile},
-		{name: "flux", deployer: config.DeployerFlux},
-		{name: "argocd", deployer: config.DeployerArgoCD},
-		{name: "argocd-helm", deployer: config.DeployerArgoCDHelm},
-		{name: "terraform", deployer: config.DeployerTerraform},
-	}
+	deployers := allDeployerCases()
 
 	for _, tc := range deployers {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewConfig(
-				config.WithDeployer(tc.deployer),
+			cfg := tc.configFor(
 				config.WithVersion("v1.0.0"),
 				// The eviction contract is opt-in (#2469); these parity tests
 				// assert the rendered contract, so they configure the label.

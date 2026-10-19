@@ -70,6 +70,13 @@ type bundleCmdOptions struct {
 	// fluxNamespace is the Kubernetes namespace where Flux CRs are deployed.
 	fluxNamespace string
 
+	// fleetNamespace is the Fleet workspace the generated GitRepo or HelmOps
+	// are applied to.
+	fleetNamespace string
+
+	// fleetMode selects GitRepo or HelmOp output for --deployer fleet.
+	fleetMode string
+
 	// vendorCharts pulls upstream Helm chart bytes into the bundle so
 	// the resulting artifact is self-contained and air-gap deployable.
 	vendorCharts bool
@@ -341,6 +348,38 @@ func parseBundleCmdOptions(cmd *cli.Command, cfg *aicr.Config) (*bundleCmdOption
 		opts.fluxNamespace = cmd.String("flux-namespace")
 	}
 
+	if opts.deployer == config.DeployerFleet {
+		// Fleet consumes a Git repository (GitRepo mode) or a HelmOp file
+		// applied directly (HelmOp mode); neither reads an OCI bundle.
+		if opts.ociRef != nil {
+			return nil, errors.New(errors.ErrCodeInvalidRequest,
+				"--deployer fleet does not support OCI output: push the bundle to a Git repository "+
+					"(--fleet-mode gitrepo) or apply helmops.yaml directly (--fleet-mode helmop)")
+		}
+		opts.fleetNamespace = cmd.String("fleet-namespace")
+		if nsErr := config.ValidateFleetName("--fleet-namespace", opts.fleetNamespace); nsErr != nil {
+			return nil, nsErr
+		}
+		mode, modeErr := config.ParseFleetMode(cmd.String("fleet-mode"))
+		if modeErr != nil {
+			return nil, modeErr
+		}
+		opts.fleetMode = mode
+		// A HelmOp references charts, not a Git repository, so --repo has no
+		// effect there. Warn as --deployer argocd-helm does.
+		if mode == config.FleetModeHelmOp && opts.repoURL != "" {
+			slog.Warn("--repo is ignored with --fleet-mode helmop; HelmOps reference charts, not a Git repository",
+				"repo", opts.repoURL)
+		}
+	} else {
+		for _, name := range []string{"fleet-namespace", "fleet-mode"} {
+			if cmd.IsSet(name) {
+				return nil, errors.New(errors.ErrCodeInvalidRequest,
+					fmt.Sprintf("--%s is only valid with --deployer fleet", name))
+			}
+		}
+	}
+
 	// Reject Flux-specific flags when deployer is not flux — a user who
 	// sets them on --deployer helm/argocd would otherwise not realize
 	// their config was silently ignored.
@@ -368,17 +407,26 @@ func parseBundleCmdOptions(cmd *cli.Command, cfg *aicr.Config) (*bundleCmdOption
 		}
 	}
 
-	// --app-name applies to argocd-helm and argocd only. Reject on other
-	// deployers so a user passing it on --deployer helm/flux gets a clear
-	// error instead of silent acceptance with no effect.
+	// --app-name applies to argocd-helm, argocd, and fleet only. Reject on
+	// other deployers so a user passing it on --deployer helm/flux gets a
+	// clear error instead of silent acceptance with no effect.
 	opts.appName = stringFlagOrConfig(cmd, "app-name", bundleOpts.AppName)
 	if opts.appName != "" {
-		if opts.deployer != config.DeployerArgoCD && opts.deployer != config.DeployerArgoCDHelm {
+		if opts.deployer != config.DeployerArgoCD && opts.deployer != config.DeployerArgoCDHelm &&
+			opts.deployer != config.DeployerFleet {
+
 			return nil, errors.New(errors.ErrCodeInvalidRequest,
-				"--app-name is only valid with --deployer argocd or --deployer argocd-helm")
+				"--app-name is only valid with --deployer argocd, --deployer argocd-helm, or --deployer fleet")
 		}
 		if validateErr := config.ValidateAppName(opts.appName); validateErr != nil {
 			return nil, validateErr
+		}
+		// Fleet uses the app name as the GitRepo name and as a bundle-name
+		// prefix, both of which must be DNS-1123 labels.
+		if opts.deployer == config.DeployerFleet {
+			if validateErr := config.ValidateFleetName("--app-name", opts.appName); validateErr != nil {
+				return nil, validateErr
+			}
 		}
 	}
 
@@ -711,6 +759,7 @@ Use --deployer argocd to generate Argo CD Applications.
 Use --deployer argocd-helm to generate a Helm chart that renders the Argo CD Applications, with values overridable at install time.
 Use --deployer flux to generate Flux HelmRelease and Kustomization manifests.
 Use --deployer helmfile to generate a helmfile.yaml release graph (apply/diff/destroy with the upstream helmfile CLI).
+Use --deployer fleet to generate a Rancher Fleet GitRepo bundle (one fleet.yaml per component, chained with dependsOn).
 Use --deployer terraform to generate a Terraform root module (plan/apply with terraform), or a child module with --terraform-child-module.
 
 Helm:
@@ -768,6 +817,18 @@ Helmfile:
   - README.md: helmfile apply/diff/destroy walkthrough
   - checksums.txt: SHA256 checksums of generated files
 
+Fleet:
+  - gitrepo.yaml: Fleet GitRepo listing every component folder
+  - NNN-<component>/fleet.yaml: Fleet bundle per component (dependsOn chains
+    them in install order)
+  - NNN-<component>/: values.yaml, cluster-values.yaml, or a local chart
+  - README.md: Push, apply, and cluster opt-in walkthrough
+  - checksums.txt: SHA256 checksums of generated files
+  Use --fleet-namespace to pick the Fleet workspace (default: fleet-default;
+  fleet-local targets the Rancher local cluster). --app-name names the GitRepo
+  and prefixes bundle names (default: aicr). --fleet-mode helmop writes
+  helmops.yaml (one HelmOp per component) instead of fleet.yaml + GitRepo.
+
 Terraform:
   - main.tf: One module call per component; depends_on carries the recipe's
     dependency graph exactly, so independent components apply concurrently
@@ -798,6 +859,9 @@ Generate Flux manifests:
 
 Generate Helmfile release graph:
   aicr bundle --recipe recipe.yaml --output ./my-bundle --deployer helmfile
+
+Generate Rancher Fleet GitRepo bundle:
+  aicr bundle --recipe recipe.yaml --output ./my-bundle --deployer fleet --repo https://github.com/my-org/fleet.git
 
 Generate a Terraform root module (add --terraform-child-module for a child module):
   aicr bundle --recipe recipe.yaml --output ./my-bundle --deployer terraform
@@ -939,20 +1003,22 @@ Package with explicit tag (overrides CLI version):
 			&cli.StringFlag{
 				Name:  "repo",
 				Value: "",
-				Usage: "Git repository URL for GitOps deployers (used with --deployer argocd and --deployer flux). " +
+				Usage: "Git repository URL for GitOps deployers (used with --deployer argocd, flux, and fleet). " +
 					"Ignored by --deployer argocd-helm: that bundle is URL-portable and the publish " +
 					"location is supplied at install time via `helm install --set repoURL=...`.",
 				Category: catDeployment,
 			},
 			&cli.StringFlag{
 				Name: "app-name",
-				Usage: "Parent Argo Application name (used by --deployer argocd and --deployer argocd-helm). " +
-					"Defaults: \"aicr-stack\" for argocd-helm, \"nvidia-stack\" for argocd. " +
+				Usage: "Parent Argo Application name (used by --deployer argocd and --deployer argocd-helm), " +
+					"or the Fleet GitRepo name and bundle-name prefix (--deployer fleet). " +
+					"Defaults: \"aicr-stack\" for argocd-helm, \"nvidia-stack\" for argocd, \"aicr\" for fleet. " +
 					"Override when deploying multiple non-overlapping AICR bundles to the same " +
 					"Argo CD namespace so the parent Applications do not collide. " +
 					"For --deployer argocd-helm, the value is the chart default and can be " +
 					"overridden at install time via `helm install --set appName=...`. " +
-					"Must be a DNS-1123 subdomain.",
+					"Must be a DNS-1123 subdomain; with --deployer fleet, a DNS-1123 label whose " +
+					"<app-name>-<release> bundle names stay within 63 characters.",
 				Category: catDeployment,
 			},
 			&cli.BoolFlag{
@@ -1030,6 +1096,23 @@ Package with explicit tag (overrides CLI version):
 					"ArtifactGenerator) are deployed (--deployer flux only). Must " +
 					"match the namespace of the Flux installation in the target cluster.",
 				Value:    config.DefaultFluxNamespace,
+				Category: catDeployment,
+			},
+			&cli.StringFlag{
+				Name: "fleet-namespace",
+				Usage: "Fleet workspace (namespace) the generated GitRepo or HelmOps are applied to " +
+					"(--deployer fleet only). fleet-default targets downstream clusters " +
+					"registered with Rancher; fleet-local targets the Rancher local cluster.",
+				Value:    config.DefaultFleetNamespace,
+				Category: catDeployment,
+			},
+			&cli.StringFlag{
+				Name: "fleet-mode",
+				Usage: "Fleet output shape (--deployer fleet only): gitrepo writes a fleet.yaml per " +
+					"component and a GitRepo; helmop writes one HelmOp per component in helmops.yaml, " +
+					"which references charts instead of embedding them (no ~1MiB Bundle limit) but " +
+					"cannot deploy local charts (raw manifests).",
+				Value:    config.FleetModeGitRepo,
 				Category: catDeployment,
 			},
 			&cli.BoolFlag{
@@ -1279,6 +1362,8 @@ func runBundleCmdWithDependencies(
 		outputType = "Flux manifests"
 	case config.DeployerHelmfile:
 		outputType = "Helmfile release graph"
+	case config.DeployerFleet:
+		outputType = "Rancher Fleet bundle"
 	case config.DeployerTerraform:
 		outputType = "Terraform root module"
 		if opts.terraformChildModule {
@@ -1335,6 +1420,8 @@ func runBundleCmdWithDependencies(
 		config.WithTerraformChildModule(opts.terraformChildModule),
 		config.WithOCISourceName(opts.ociSourceName),
 		config.WithFluxNamespace(opts.fluxNamespace),
+		config.WithFleetNamespace(opts.fleetNamespace),
+		config.WithFleetMode(opts.fleetMode),
 		config.WithBundleChartName(opts.bundleChartName),
 		config.WithBundleChartVersion(opts.bundleChartVersion),
 		config.WithOCIParentNamespace(opts.ociParentNamespace),

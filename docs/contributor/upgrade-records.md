@@ -248,7 +248,7 @@ grove is pinned at one.
 **Deployer groups must partition.** No two explicit groups may claim the same
 deployer, at most one group may omit `deployers` (that one is *the* remainder),
 and a `manual` or `blocked` verdict must cover all six of `argocd`,
-`argocd-helm`, `flux`, `helm`, `helmfile`, `terraform`. Otherwise an Argo CD operator gets a
+`argocd-helm`, `fleet`, `flux`, `helm`, `helmfile`, `terraform`. Otherwise an Argo CD operator gets a
 verdict promising steps with none for them.
 
 Write the steps a given deployer needs in that deployer's group, even when they

@@ -126,6 +126,8 @@ func TestBundleCmd_NewConfigMatchesBundlerConfigFields(t *testing.T) {
 		"WithTerraformChildModule":     true,
 		"WithOCISourceName":            true,
 		"WithFluxNamespace":            true,
+		"WithFleetNamespace":           true,
+		"WithFleetMode":                true,
 		"WithBundleChartName":          true,
 		"WithBundleChartVersion":       true,
 		"WithOCIParentNamespace":       true,
