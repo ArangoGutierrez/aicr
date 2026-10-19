@@ -1514,8 +1514,8 @@ func applyNCCLResources(ctx *validators.Context, dynamicClient dynamic.Interface
 			return aicrErrors.Wrap(aicrErrors.ErrCodeInternal, "failed to apply NCCL runtime image override", overrideErr)
 		}
 	}
-	if schedErr := applyNCCLWorkerScheduling(runtimeObj, effectiveNodeSelector, effectiveTolerations); schedErr != nil {
-		return aicrErrors.Wrap(aicrErrors.ErrCodeInternal, "failed to apply NCCL worker scheduling", schedErr)
+	if schedErr := scheduleNCCLRuntime(runtimeObj, effectiveNodeSelector, effectiveTolerations, plan); schedErr != nil {
+		return schedErr
 	}
 	if err = createUnstructured(ctx.Ctx, dynamicClient, trainingRuntimeGVR, config.Namespace, runtimeObj); err != nil {
 		return aicrErrors.Wrap(aicrErrors.ErrCodeInternal, "failed to apply training runtime", err)
@@ -2213,6 +2213,75 @@ func applyNCCLWorkerScheduling(obj *unstructured.Unstructured, nodeSelector map[
 		return aicrErrors.New(aicrErrors.ErrCodeInternal, `replicatedJob "node" not found in TrainingRuntime`)
 	}
 
+	return unstructured.SetNestedSlice(obj.Object, replicatedJobs, "spec", "template", "spec", "replicatedJobs")
+}
+
+// scheduleNCCLRuntime stamps worker scheduling, then pins the launcher to the
+// resulting worker placement. The pin is gated like the runtime image override:
+// a recipe-supplied runtime owns its launcher placement end to end.
+func scheduleNCCLRuntime(obj *unstructured.Unstructured, nodeSelector map[string]string, tolerations []v1.Toleration, plan *benchmarkRuntimePlan) error {
+	if err := applyNCCLWorkerScheduling(obj, nodeSelector, tolerations); err != nil {
+		return aicrErrors.Wrap(aicrErrors.ErrCodeInternal, "failed to apply NCCL worker scheduling", err)
+	}
+	if plan.recipeSupplied() {
+		return nil
+	}
+	if err := pinNCCLLauncherToWorkers(obj); err != nil {
+		return aicrErrors.Wrap(aicrErrors.ErrCodeInternal, "failed to pin NCCL launcher to workers", err)
+	}
+	return nil
+}
+
+// pinNCCLLauncherToWorkers copies the worker replicatedJob's final nodeSelector
+// and tolerations onto the launcher, so mpirun starts inside the worker cohort
+// where the shared benchmark image is already cached. Unpinned, the launcher
+// can land on a CPU node with a slow disk and spend all of NCCLTrainJobTimeout
+// pulling that multi-GB image while both workers sit Running. A worker with no
+// nodeSelector has no cohort to pin to, so the launcher keeps its own
+// placement; a runtime with no launcher (torchrun) is left unchanged.
+func pinNCCLLauncherToWorkers(obj *unstructured.Unstructured) error {
+	replicatedJobs, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "replicatedJobs")
+	if err != nil || !found {
+		return aicrErrors.New(aicrErrors.ErrCodeInternal, "replicatedJobs not found in TrainingRuntime")
+	}
+
+	var workerPodSpec, launcherPodSpec map[string]any
+	launcherFound := false
+	for _, jobRaw := range replicatedJobs {
+		jobMap, ok := jobRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+		podSpec, _ := nestedMap(jobMap, "template", "spec", "template", "spec")
+		switch name, _, _ := unstructured.NestedString(jobMap, "name"); name {
+		case nodeJobName:
+			workerPodSpec = podSpec
+		case benchmarkLauncherJob:
+			launcherFound = true
+			launcherPodSpec = podSpec
+		}
+	}
+	if !launcherFound {
+		return nil
+	}
+	if launcherPodSpec == nil {
+		return aicrErrors.New(aicrErrors.ErrCodeInternal, "launcher pod spec not found in TrainingRuntime launcher job")
+	}
+	if workerPodSpec == nil {
+		return aicrErrors.New(aicrErrors.ErrCodeInternal, `replicatedJob "node" not found in TrainingRuntime`)
+	}
+
+	nodeSelector, _ := workerPodSpec["nodeSelector"].(map[string]any)
+	if len(nodeSelector) == 0 {
+		return nil
+	}
+	// SetNestedSlice deep-copies on write, so the launcher does not alias the
+	// worker's maps once stored.
+	launcherPodSpec["nodeSelector"] = nodeSelector
+	if tolerations, ok := workerPodSpec["tolerations"].([]any); ok && len(tolerations) > 0 {
+		launcherPodSpec["tolerations"] = tolerations
+	}
+	slog.Info("Pinning NCCL launcher to the worker node cohort", "selector", nodeSelector)
 	return unstructured.SetNestedSlice(obj.Object, replicatedJobs, "spec", "template", "spec", "replicatedJobs")
 }
 

@@ -1402,7 +1402,7 @@ aicr validate --config validate-cluster-a.yaml
 aicr validate --config validate-cluster-b.yaml
 ```
 
-The `--node-selector` and `--toleration` flags control scheduling for the inner validation workloads (NCCL benchmark workers, conformance test pods). When `--snapshot` is omitted, they also configure the preliminary live snapshot agent. They do not configure the validator orchestrator Job. For when to use them with non-standard GPU labels or taints, see [Validation](validation.md#non-standard-gpu-labels-or-taints).
+The `--node-selector` and `--toleration` flags control scheduling for the inner validation workloads (NCCL benchmark workers and their `mpirun` launcher, conformance test pods). When `--snapshot` is omitted, they also configure the preliminary live snapshot agent. They do not configure the validator orchestrator Job. For when to use them with non-standard GPU labels or taints, see [Validation](validation.md#non-standard-gpu-labels-or-taints).
 
 **Output Structure ([CTRF](https://ctrf.io/) JSON):**
 

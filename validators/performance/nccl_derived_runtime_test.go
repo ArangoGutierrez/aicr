@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -777,6 +778,74 @@ func TestProvenanceRecordedOnlyAfterRuntimeApplied(t *testing.T) {
 		}
 		if plan.provenance == nil || len(plan.provenance.inheritedPaths) == 0 {
 			t.Fatalf("provenance must describe the applied object: %+v", plan.provenance)
+		}
+	})
+}
+
+// TestApplyNCCLResourcesPinsLauncher checks the stored runtime, not the helper:
+// on the delivered GKE path the launcher must land in the worker cohort, and a
+// recipe-supplied runtime keeps the launcher placement its author wrote.
+func TestApplyNCCLResourcesPinsLauncher(t *testing.T) {
+	const ns = "aicr-validation"
+	config := &gpuConfiguration{WorkerCount: 2, GPUCountPerNode: 8, TotalGPUCount: 16, Namespace: ns}
+	apply := func(t *testing.T, customRuntime string, plan *benchmarkRuntimePlan) *unstructured.Unstructured {
+		t.Helper()
+		client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), ncclGVRListKinds)
+		ctx := &validators.Context{Ctx: t.Context(), DynamicClient: client, Namespace: ns}
+		if err := applyNCCLResources(ctx, client, config, recipe.CriteriaAcceleratorH100, recipe.CriteriaServiceGKE,
+			variantDefault, fabricEFA, customRuntime, "", plan); err != nil {
+			t.Fatal(err)
+		}
+		stored, err := client.Resource(trainingRuntimeGVR).Namespace(ns).Get(t.Context(), ncclTrainingRuntimeName, metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return stored
+	}
+
+	t.Run("delivered runtime pins launcher to worker nodeSelector", func(t *testing.T) {
+		plan := deliveredPlan(t)
+		stored := apply(t, plan.carrier, plan)
+		want := ncclJobPodSpec(t, stored, nodeJobName)["nodeSelector"]
+		if want == nil {
+			t.Fatal("control: the derived worker must carry the shipped nodeSelector")
+		}
+		if got := ncclJobPodSpec(t, stored, benchmarkLauncherJob)["nodeSelector"]; !reflect.DeepEqual(got, want) {
+			t.Errorf("launcher nodeSelector = %v, want worker's %v", got, want)
+		}
+	})
+
+	t.Run("recipe-supplied runtime keeps its own launcher placement", func(t *testing.T) {
+		const authored = `apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: author-chose-this
+spec:
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  nodeSelector:
+                    my.io/private-gpu: "true"
+                  containers:
+                    - name: node
+                      image: example.com/nccl:latest
+        - name: launcher
+          template:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: node
+                      image: example.com/nccl:latest
+`
+		stored := apply(t, authored, &benchmarkRuntimePlan{source: runtimeSourceRecipeSupplied})
+		if got, has := ncclJobPodSpec(t, stored, benchmarkLauncherJob)["nodeSelector"]; has {
+			t.Errorf("recipe-supplied launcher was pinned: nodeSelector = %v", got)
 		}
 	})
 }

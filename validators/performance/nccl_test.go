@@ -215,6 +215,160 @@ func TestApplyNCCLWorkerScheduling_Both(t *testing.T) {
 	}
 }
 
+func ncclRuntimeWithJobs(jobs ...map[string]any) *unstructured.Unstructured {
+	raw := make([]any, 0, len(jobs))
+	for _, j := range jobs {
+		raw = append(raw, j)
+	}
+	return &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{"template": map[string]any{"spec": map[string]any{"replicatedJobs": raw}}},
+	}}
+}
+
+func ncclReplicatedJob(name string, podSpec map[string]any) map[string]any {
+	return map[string]any{
+		"name":     name,
+		"template": map[string]any{"spec": map[string]any{"template": map[string]any{"spec": podSpec}}},
+	}
+}
+
+func ncclJobPodSpec(t *testing.T, obj *unstructured.Unstructured, name string) map[string]any {
+	t.Helper()
+	jobs, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "replicatedJobs")
+	for _, j := range jobs {
+		jm, _ := j.(map[string]any)
+		if jm["name"] != name {
+			continue
+		}
+		spec, found := nestedMap(jm, "template", "spec", "template", "spec")
+		if !found {
+			t.Fatalf("%s pod spec not found", name)
+		}
+		return spec
+	}
+	t.Fatalf("replicatedJob %q not found", name)
+	return nil
+}
+
+func TestPinNCCLLauncherToWorkers(t *testing.T) {
+	gpuTolerations := []any{
+		map[string]any{"key": "dedicated", "operator": "Equal", "value": "gpu-workload", "effect": "NoSchedule"},
+		map[string]any{"key": "nvidia.com/gpu", "operator": "Equal", "value": "present", "effect": "NoSchedule"},
+	}
+	tolerateAll := []any{map[string]any{"operator": "Exists"}}
+
+	tests := []struct {
+		name              string
+		jobs              []map[string]any
+		wantLauncherNS    map[string]any
+		wantLauncherTols  []any
+		wantErr           bool
+		skipLauncherCheck bool
+	}{
+		{
+			name: "launcher inherits worker nodeSelector and tolerations",
+			jobs: []map[string]any{
+				ncclReplicatedJob(testWorkerJobName, map[string]any{
+					"nodeSelector": map[string]any{"nodeGroup": "gpu-worker"},
+					"tolerations":  gpuTolerations,
+				}),
+				ncclReplicatedJob(benchmarkLauncherJob, map[string]any{"tolerations": tolerateAll}),
+			},
+			wantLauncherNS:   map[string]any{"nodeGroup": "gpu-worker"},
+			wantLauncherTols: gpuTolerations,
+		},
+		{
+			name: "worker without nodeSelector leaves launcher untouched",
+			jobs: []map[string]any{
+				ncclReplicatedJob(testWorkerJobName, map[string]any{"tolerations": gpuTolerations}),
+				ncclReplicatedJob(benchmarkLauncherJob, map[string]any{"tolerations": tolerateAll}),
+			},
+			wantLauncherNS:   nil,
+			wantLauncherTols: tolerateAll,
+		},
+		{
+			name: "worker without tolerations keeps launcher tolerations",
+			jobs: []map[string]any{
+				ncclReplicatedJob(testWorkerJobName, map[string]any{
+					"nodeSelector": map[string]any{"nodeGroup": "gpu-worker"},
+				}),
+				ncclReplicatedJob(benchmarkLauncherJob, map[string]any{"tolerations": tolerateAll}),
+			},
+			wantLauncherNS:   map[string]any{"nodeGroup": "gpu-worker"},
+			wantLauncherTols: tolerateAll,
+		},
+		{
+			name: "runtime without launcher is a no-op",
+			jobs: []map[string]any{
+				ncclReplicatedJob(testWorkerJobName, map[string]any{
+					"nodeSelector": map[string]any{"nodeGroup": "gpu-worker"},
+				}),
+			},
+			skipLauncherCheck: true,
+		},
+		{
+			name: "launcher without worker fails",
+			jobs: []map[string]any{
+				ncclReplicatedJob(benchmarkLauncherJob, map[string]any{"tolerations": tolerateAll}),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := ncclRuntimeWithJobs(tt.jobs...)
+			err := pinNCCLLauncherToWorkers(obj)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("pinNCCLLauncherToWorkers() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr || tt.skipLauncherCheck {
+				return
+			}
+			launcher := ncclJobPodSpec(t, obj, benchmarkLauncherJob)
+			gotNS, _ := launcher["nodeSelector"].(map[string]any)
+			if tt.wantLauncherNS == nil {
+				if _, has := launcher["nodeSelector"]; has {
+					t.Errorf("launcher nodeSelector = %v, want absent", launcher["nodeSelector"])
+				}
+			} else if !reflect.DeepEqual(gotNS, tt.wantLauncherNS) {
+				t.Errorf("launcher nodeSelector = %v, want %v", gotNS, tt.wantLauncherNS)
+			}
+			if got := launcher["tolerations"]; !reflect.DeepEqual(got, tt.wantLauncherTols) {
+				t.Errorf("launcher tolerations = %v, want %v", got, tt.wantLauncherTols)
+			}
+		})
+	}
+}
+
+// TestPinNCCLLauncherToWorkers_DerivedGKERuntime covers the delivered-artifact
+// path that hung on GKE: the worker inherits its nodeSelector from the shipped
+// runtime, effectiveWorkerScheduling stamps none, and the skeleton launcher
+// carries no placement of its own.
+func TestPinNCCLLauncherToWorkers_DerivedGKERuntime(t *testing.T) {
+	plan := deliveredPlan(t)
+	obj, err := buildNCCLRuntimeObject(plan.carrier, recipe.CriteriaAcceleratorH100, recipe.CriteriaServiceGKE,
+		variantDefault, fabricEFA, "ns", derivedTemplateData, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = applyNCCLWorkerScheduling(obj, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := ncclJobPodSpec(t, obj, benchmarkLauncherJob)["nodeSelector"]; has {
+		t.Fatal("control: the derived skeleton launcher must start without a nodeSelector")
+	}
+	if err = pinNCCLLauncherToWorkers(obj); err != nil {
+		t.Fatal(err)
+	}
+	want := ncclJobPodSpec(t, obj, testWorkerJobName)["nodeSelector"]
+	if want == nil {
+		t.Fatal("control: the derived worker must carry the shipped nodeSelector")
+	}
+	if got := ncclJobPodSpec(t, obj, benchmarkLauncherJob)["nodeSelector"]; !reflect.DeepEqual(got, want) {
+		t.Errorf("launcher nodeSelector = %v, want worker's %v", got, want)
+	}
+}
+
 func TestResolveTargetGPUNodes(t *testing.T) {
 	mkNode := func(name string, labels map[string]string) corev1.Node {
 		return corev1.Node{
