@@ -48,10 +48,10 @@
 #      the Kind recipe and bundle it for Mokka". Without them the bundle points
 #      every operand at the host driver root that nvkind provides and a Mokka
 #      node does not have.
-#   4. Run install.sh in the bundle's NFD, gpu-operator and DRA driver
-#      folders, in that order, as "Deploy NFD, gpu-operator and the DRA
-#      driver from the bundle" does. The lane installs only those three, not
-#      the whole bundle.
+#   4. Run install.sh in the bundle's prometheus-operator-crds, NFD,
+#      gpu-operator and DRA driver folders, in that order, as "Deploy NFD,
+#      gpu-operator and the DRA driver from the bundle" does. The lane
+#      installs only those four, not the whole bundle.
 name: GPU Operator on Mokka (GPU-free)
 
 on:
@@ -67,6 +67,7 @@ on:
       - 'recipes/overlays/h100-any.yaml'
       - 'recipes/overlays/kind.yaml'
       - 'recipes/overlays/h100-kind-training.yaml'
+      - 'recipes/components/prometheus-operator-crds/**'
       - 'recipes/components/nfd/**'
       - 'recipes/components/gpu-operator/**'
       - 'recipes/components/nvidia-dra-driver-gpu/**'
@@ -317,11 +318,16 @@ jobs:
           # derives from the feature file nvml-mock stages. Without it the
           # ClusterPolicy reports ready with zero operands and zero GPUs. The
           # DRA kubelet plugin's node affinity reads the same NFD labels.
+          # The monitoring CRDs go before NFD: the nfd values enable the
+          # chart's PodMonitor, and Helm rejects a release whose manifest names
+          # a kind the API server does not serve.
+          crds_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-prometheus-operator-crds' | head -1)
           nfd_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nfd' | head -1)
           gpu_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-gpu-operator' | head -1)
           dra_dir=$(find /tmp/bundle -maxdepth 1 -type d -name '*-nvidia-dra-driver-gpu' | head -1)
-          [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ] && [ -n "$dra_dir" ] \
+          [ -n "$crds_dir" ] && [ -n "$nfd_dir" ] && [ -n "$gpu_dir" ] && [ -n "$dra_dir" ] \
             || { echo "::error::bundle lacks a required folder"; exit 1; }
+          ( cd "$crds_dir" && bash install.sh )
           ( cd "$nfd_dir" && bash install.sh )
           ( cd "$gpu_dir" && bash install.sh )
           ( cd "$dra_dir" && bash install.sh )
