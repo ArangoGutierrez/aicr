@@ -677,7 +677,8 @@ func TestResolveRecipeFromSnapshot_ProfileSurvivalCarriesAttribution(t *testing.
 		if !stderrors.As(strictErr, &se) {
 			t.Fatalf("error is not structured: %v", strictErr)
 		}
-		const wantMsg = `profile declaration from overlay "aks" was removed by snapshot constraint filtering`
+		const wantMsg = `profile declaration from overlay "aks" was removed by snapshot constraint filtering, ` +
+			`failed constraints [aks K8s.server.version (expected >= 1.34, got 1.33.0)]`
 		if se.Code != errors.ErrCodeInvalidRequest || se.Message != wantMsg {
 			t.Fatalf("error = [%s] %q, want [%s] %q", se.Code, se.Message, errors.ErrCodeInvalidRequest, wantMsg)
 		}
