@@ -1,0 +1,50 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: aicr.run/v1beta1
+kind: ComponentUpgrades
+component: nfd
+transitions:
+  # from starts at 0.19.0, the release AICR pinned before 0.20.1 and the only
+  # origin assessed. 0.18.x has its own action-required items at 0.19.0 that
+  # this record does not cover, so an operator below 0.19.0 matches no from
+  # range and is told to move up to a recorded version first.
+  #
+  # Between 0.19.0 and 0.20.1 the worker-side sources AICR's values and tests
+  # depend on (source/, pkg/nfd-worker, pkg/apis) are unchanged, the chart's
+  # CRD changes are description-only, and the new chart keys
+  # (topologyUpdater.updateStrategy, gc.securityContext) default to the
+  # previous behavior or a faster rollout.
+  - from: ">=0.19.0 <0.20.1"
+    to: "0.20.1"
+    verdict: safe
+    verifiedBy: >-
+      Live Helm upgrade on kind (Kubernetes v1.37.0, one control-plane and
+      one worker node), 2026-10-23: chart 0.19.0 to 0.20.1, then helm
+      rollback to 0.19.0, with the nfd values from an eks/h100/training/ubuntu
+      helm bundle. nfd-master, nfd-worker and nfd-gc rolled to each image with
+      no restarts, and the 102 NFD node labels were identical after the
+      upgrade and after the rollback. The topology updater was not part of
+      that run; its RBAC change rests on the upstream v0.20.0 release notes
+      (Action Required 1), which state that the Helm chart ships the new rule.
+    summary: >-
+      0.20.0 moves nfd-topology-updater to server-side apply, and the chart
+      swaps its noderesourcetopologies grant from get/update to create/patch
+      in the same release, so a chart upgrade carries both. Topology-updater
+      pods still on 0.19.0 during the DaemonSet rollout are denied the get
+      they need and leave their node's NodeResourceTopology at its last value
+      until they are replaced. 0.20.1 is a rebuild on Go 1.27.3.
+    references:
+      - https://github.com/kubernetes-sigs/node-feature-discovery/releases/tag/v0.20.0
+      - https://github.com/kubernetes-sigs/node-feature-discovery/releases/tag/v0.20.1

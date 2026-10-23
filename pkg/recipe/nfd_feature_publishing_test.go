@@ -200,7 +200,7 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 				rules = nfdPubMellanoxRules(values)
 				for _, rule := range nfdPubTemplatePCIRules(values) {
 					t.Errorf("%s: nfd worker.config.sources.custom rule %s has a labelsTemplate reading pci.device, which may "+
-						"emit %s where invariants 1 and 2 cannot count it (NFD v0.19.0 source/custom/api/types.go:32, "+
+						"emit %s where invariants 1 and 2 cannot count it (NFD v0.20.1 source/custom/api/types.go:32, "+
 						"pkg/apis/nfd/nodefeaturerule/rule.go:101 and :126); use static labels", name, rule, nfdPubMellanoxBare)
 				}
 				if whitelist, fields, ok := nfdPubPCISourceNIC(values); ok {
@@ -342,7 +342,7 @@ func TestNFDFeaturePublishingContract(t *testing.T) {
 // master and worker, and publishes raw PCI features by default. Its
 // templates/nodefeaturerules.yaml labels vendor 15b3, classes 0200/0207 from
 // pci.device. Keep this assertion tied to that inspected chart: unlike the
-// standalone v0.19 NFD path, it must not inherit #3038's raw-feature stripping.
+// standalone v0.20 NFD path, it must not inherit #3038's raw-feature stripping.
 // Reject subchart overrides until their publishing semantics are audited.
 func nfdPubBundledProblems(ref ComponentRef, values map[string]any, duplicateProvider bool) []string {
 	var problems []string
@@ -396,7 +396,7 @@ func TestNFDPubBundledProblems(t *testing.T) {
 	}
 }
 
-// TestNFDPubStripped pins the pattern semantics to nfd-worker v0.19.0
+// TestNFDPubStripped pins the pattern semantics to nfd-worker v0.20.1
 // patternMatches: exact key, or prefix when the pattern ends in "*".
 func TestNFDPubStripped(t *testing.T) {
 	tests := []struct {
@@ -421,7 +421,7 @@ func TestNFDPubStripped(t *testing.T) {
 }
 
 // TestNFDPubWorkerPublishing pins the effective strip list and noPublish
-// state to the nfd-worker v0.19.0 override order: config file, then -options,
+// state to the nfd-worker v0.20.1 override order: config file, then -options,
 // then the -no-publish-features and -no-publish flags.
 func TestNFDPubWorkerPublishing(t *testing.T) {
 	tests := []struct {
@@ -868,7 +868,7 @@ func nfdPubMellanoxRules(values map[string]any) []map[string]any {
 
 // nfdPubPCISourceNIC returns the effective nfd-worker sources.pci lists and
 // whether they label a Mellanox NIC (class 0200 or 0207) pci-15b3.present.
-// Per NFD v0.19.0 source/pci/pci.go: the defaults are whitelist
+// Per NFD v0.20.1 source/pci/pci.go: the defaults are whitelist
 // ["03","0b40","12"] and fields ["class","vendor"] (:46-51); configured fields
 // are kept in mandatoryDevAttrs order (utils.go:31) with unknown names dropped,
 // falling back to the defaults when none is left (:95-113); a device is
@@ -906,7 +906,7 @@ func nfdPubPCISourceNIC(values map[string]any) (whitelist, fields []string, labe
 }
 
 // nfdPubWorkerRuleProblems lists the merged nfd values that would keep the
-// nfd-worker sources.custom rule from labeling a node. Per NFD v0.19.0
+// nfd-worker sources.custom rule from labeling a node. Per NFD v0.20.1
 // pkg/nfd-worker/nfd-worker.go: labelSources and featureSources default to
 // ["all"] (:302-303), the custom label source reads features only from
 // enabled feature sources (:340, source/source.go:182), the deprecated
@@ -944,7 +944,7 @@ func nfdPubWorkerRuleProblems(values map[string]any) []string {
 	return problems
 }
 
-// nfdPubSourceEnabled replays nfd-worker v0.19.0 source-list processing
+// nfdPubSourceEnabled replays nfd-worker v0.20.1 source-list processing
 // (nfd-worker.go:572-598, :604-630): entries apply in order, "all" enables
 // every source (none but the fake source is off by default), "-name"
 // disables one.
@@ -1041,7 +1041,7 @@ func nfdPubPCIExpressions(rule map[string]any) map[string]any {
 }
 
 // nfdPubWorkerPublishing returns the noPublishFeatures list and noPublish
-// state nfd-worker v0.19.0 runs with. Per pkg/nfd-worker/nfd-worker.go
+// state nfd-worker v0.20.1 runs with. Per pkg/nfd-worker/nfd-worker.go
 // configure (:672-711), the config file is read first, the -options YAML is
 // unmarshaled over it (:687), and applyConfigOverrides then applies -no-publish
 // (:745-747) and -no-publish-features (:761-763). The flag value is split as
@@ -1115,7 +1115,7 @@ func nfdPubWorkerFlags(args []string) map[string]string {
 }
 
 // nfdPubTemplatePCIRules names the nfd-worker sources.custom rules with a
-// labelsTemplate whose matchFeatures or matchAny read pci.device. NFD v0.19.0
+// labelsTemplate whose matchFeatures or matchAny read pci.device. NFD v0.20.1
 // expands the template from the matched features into the rule's labels
 // (source/custom/api/types.go:32, pkg/apis/nfd/nodefeaturerule/rule.go:101
 // and :126), so such a rule may emit pci-15b3.present.
@@ -1135,7 +1135,7 @@ func nfdPubTemplatePCIRules(values map[string]any) []string {
 }
 
 // nfdPubMatcherFeatures lists the features a rule reads through
-// matchFeatures[].feature and matchAny[].matchFeatures[].feature (NFD v0.19.0
+// matchFeatures[].feature and matchAny[].matchFeatures[].feature (NFD v0.20.1
 // api/nfd/v1alpha1/types.go:248-252, :258, :270; group rules :199-203).
 func nfdPubMatcherFeatures(rule map[string]any) []string {
 	anyOf, _ := rule["matchAny"].([]any)
