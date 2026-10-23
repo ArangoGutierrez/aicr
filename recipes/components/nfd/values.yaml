@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Node Feature Discovery standalone deployment
-# NFD v0.20.1, shared by gpu-operator and network-operator
+# Shared by gpu-operator and network-operator
 #
 # The chart carries the topology-updater RBAC that upstream's
 # action-required items call for: pods list/watch for the node-scoped Pod
