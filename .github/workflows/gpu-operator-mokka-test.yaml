@@ -102,7 +102,7 @@ concurrency:
 jobs:
   gpu-operator-mokka:
     name: gpu-operator on mocked GPUs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CLUSTER_NAME: aicr-mokka
@@ -135,8 +135,9 @@ jobs:
           set -euo pipefail
           # setup-build-tools replaces a runner helm that differs from the pin,
           # but keeps any kind or kubectl already at /usr/local/bin without
-          # comparing versions. ubuntu-latest ships kind there, so a runner
-          # image update would otherwise change the toolchain under the lane.
+          # comparing versions. The hosted runner image ships kind there, so a
+          # runner image update would otherwise change the toolchain under the
+          # lane.
           fail=0
           check() {
             local name="$1" want="${2#v}" got="${3#v}"
